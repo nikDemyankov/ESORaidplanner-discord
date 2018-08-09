@@ -3,8 +3,8 @@ import Dependencies._
 lazy val common = Seq(
   organization := "net.wayfarerx.esoraidplanner",
   scalaVersion := "2.12.1",
-  version := "0.5.0-SNAPSHOT",
-  test in assembly := {}
+  version := "0.1.0-SNAPSHOT"/*,
+  test in assembly := {}*/
 )
 
 lazy val discord = (project in file("discord")).settings(
@@ -22,9 +22,9 @@ lazy val discord = (project in file("discord")).settings(
   libraryDependencies += logback,
 
   libraryDependencies += akkaTest,
-  libraryDependencies += scalaTest,
+  libraryDependencies += scalaTest/*,
 
   mainClass in assembly := Some("net.wayfarerx.esoraidplanner.discord.main.Program"),
-  assemblyJarName in assembly := "esoraidplanner-discord.jar"
+  assemblyJarName in assembly := "esoraidplanner-discord.jar"*/
 
 )
