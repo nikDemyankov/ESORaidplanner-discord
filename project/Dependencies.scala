@@ -2,20 +2,18 @@ import sbt._
 
 object Dependencies {
 
-  lazy val akka = "com.typesafe.akka" %% "akka-actor-typed" % "2.5.12"
+  val Discord4jVersion = "2.10.1"
+  lazy val Discord4j = "com.discord4j" % "Discord4J" % Discord4jVersion
 
-  lazy val discord4j = "com.discord4j" % "Discord4J" % "2.10.1"
+  val Http4sVersion = "0.19.0-M1"
+  lazy val Http4sBlazeServer = "org.http4s" %% "http4s-blaze-server" % Http4sVersion
+  lazy val Http4sCirce = "org.http4s" %% "http4s-circe" % Http4sVersion
+  lazy val Http4sDsl = "org.http4s" %% "http4s-dsl" % Http4sVersion
 
-  lazy val circe = "io.circe" %% "circe-core" % "0.9.3"
-  lazy val circeGeneric = "io.circe" %% "circe-generic" % "0.9.3"
-  lazy val circeParser = "io.circe" %% "circe-parser" % "0.9.3"
-  lazy val circeExtras = "io.circe" %% "circe-generic-extras" % "0.9.3"
+  val LogbackVersion = "1.2.3"
+  lazy val Logback = "ch.qos.logback" % "logback-classic" % LogbackVersion
 
-  lazy val commonsIO = "commons-io" % "commons-io" % "2.6"
-
-  lazy val logback = "ch.qos.logback" % "logback-classic" % "1.2.3"
-
-  lazy val akkaTest = "com.typesafe.akka" %% "akka-testkit-typed" % "2.5.12" % Test
-  lazy val scalaTest = "org.scalatest" %% "scalatest" % "3.0.1" % Test
+  val ScalaTestVersion = "3.0.5"
+  lazy val ScalaTest = "org.scalatest" %% "scalatest" % ScalaTestVersion % Test
 
 }
