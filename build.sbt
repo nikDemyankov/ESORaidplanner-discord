@@ -5,11 +5,15 @@ lazy val root = (project in file(".")).settings(
   name := "esoraidplanner-discord",
   version := "0.1.0-SNAPSHOT",
   scalaVersion := "2.12.6",
+  test in assembly := {},
+  mainClass in assembly := Some("net.wayfarerx.esoraidplanner.discord.main.Program"),
+  assemblyJarName in assembly := "esoraidplanner-discord.jar",
   libraryDependencies ++= Seq(
     Discord4j,
-    Http4sBlazeServer,
     Http4sCirce,
     Http4sDsl,
+    Http4sBlazeClient,
+    Http4sBlazeServer,
     Logback,
     ScalaTest
   )
