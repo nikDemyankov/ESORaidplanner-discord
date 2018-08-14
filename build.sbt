@@ -5,6 +5,7 @@ lazy val root = (project in file(".")).settings(
   name := "esoraidplanner-discord",
   version := "0.1.0-SNAPSHOT",
   scalaVersion := "2.12.6",
+  scalacOptions ++= Seq("-deprecation", "-feature"),
   test in assembly := {},
   mainClass in assembly := Some("net.wayfarerx.esoraidplanner.discord.main.Program"),
   assemblyJarName in assembly := "esoraidplanner-discord.jar",

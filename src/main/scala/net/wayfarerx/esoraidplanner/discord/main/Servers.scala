@@ -32,7 +32,8 @@ import org.http4s.server.blaze.BlazeBuilder
 object Servers extends Setting.Provider[BlazeBuilder[IO]] {
 
   /* The default configuration value. */
-  override def Default: Config = BlazeBuilder[IO]
+  override def Default: Config =
+    BlazeBuilder[IO].withNio2(true).withBanner(Vector.empty)
 
   /* The list of all HTTP server settings. */
   override val Settings: Vector[Setting[BlazeBuilder[IO]]] = Vector(
@@ -55,23 +56,7 @@ object Servers extends Setting.Provider[BlazeBuilder[IO]] {
 
     Setting.option[Config]("server-buffer-size",
       "Buffer size to use for IO operations.")(
-      Setting.Ints((config, value) => Some(config.withBufferSize(value)))),
-
-    Setting.flag[Config]("server-nio1",
-      "Use NIO1 socket server group.")(
-      config => Some(config.withNio2(false))),
-
-    Setting.flag[Config]("server-nio2",
-      "Use NIO2 socket server group.")(
-      config => Some(config.withNio2(true))),
-
-    Setting.flag[Config]("server-http1",
-      "Disable HTTP2 server features.")(
-      config => Some(config.enableHttp2(false))),
-
-    Setting.flag[Config]("server-http2",
-      "Enable HTTP2 server features.")(
-      config => Some(config.enableHttp2(true)))
+      Setting.Ints((config, value) => Some(config.withBufferSize(value))))
 
   )
 

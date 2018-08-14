@@ -41,14 +41,6 @@ object Bots extends Setting.Provider[ClientBuilder] {
       "Max number of heartbeats Discord can not respond to before a reconnect is initiated.")(
       Setting.Ints((config, value) => Some(config.withPingTimeout(value)))),
 
-    Setting.flag[Config]("bot-is-daemon",
-      "Sets the main bot thread to be daemon.")(
-      config => Some(config.setDaemon(true))),
-
-    Setting.flag[Config]("bot-not-daemon",
-      "Sets the main bot thread to be non-daemon.")(
-      config => Some(config.setDaemon(false))),
-
     Setting.option[Config]("bot-shard-count",
       "The number of shards the bot should create and manage.")(
       Setting.Ints((config, value) => Some(config.withShards(value)))),

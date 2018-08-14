@@ -21,21 +21,106 @@ package net.wayfarerx.esoraidplanner.discord
 
 import cats.effect.IO
 
-import sx.blah.discord.api.events.EventDispatcher
+import sx.blah.discord.api.events.IListener
 import sx.blah.discord.api.{ClientBuilder, IDiscordClient}
+import sx.blah.discord.handle.impl.events.guild.channel.message.MessageEvent
+import sx.blah.discord.util.RequestBuffer
 
-final class Bot private(client: IDiscordClient, dispatcher: EventDispatcher) {
+/**
+ * The Discord bot that sends and receives messages.
+ *
+ * @param discord The Discord client.
+ * @param client  The ESO raid planner client.
+ */
+final class Bot private(discord: IDiscordClient, client: Client) {
 
-  def dispose(): IO[Unit] = ???
+  /** The message event handler. */
+  private val OnMessage: IListener[MessageEvent] =
+    (event: MessageEvent) => received(event).unsafeRunSync()
+
+  /**
+   * Handles receiving a message event.
+   *
+   * @param event The message event.
+   * @return The result of the attempt to handle the event.
+   */
+  private def received(event: MessageEvent): IO[Unit] =
+    if (!event.getMessage.getContent.contains('!')) IO.pure(()) else {
+      val userId = event.getAuthor.getLongID
+      val guildId = event.getGuild.getLongID
+
+      @annotation.tailrec
+      def scan(remaining: Vector[String], messages: Vector[Message]): Vector[Message] = remaining match {
+        case cmd +: eventId +: CharacterClass(cls) +: CharacterRole(role) +: next if cmd equalsIgnoreCase "!signup" =>
+          scan(next, messages :+ Message.SignUp(userId, guildId, eventId, cls, role))
+        case cmd +: eventId +: next if cmd equalsIgnoreCase "!signoff" =>
+          scan(next, messages :+ Message.SignOff(userId, guildId, eventId))
+        case _ +: next =>
+          scan(next, messages)
+        case _ =>
+          messages
+      }
+
+      def deliver(remaining: Vector[Message]): IO[Unit] = remaining match {
+        case head +: tail =>
+          client.send(head) flatMap (_ => deliver(tail))
+        case _ =>
+          IO.pure(())
+      }
+
+      deliver(scan(
+        event.getMessage.getContent.split("""\s+""").iterator.filterNot(_.isEmpty).toVector,
+        Vector.empty
+      ))
+    }
+
+  /**
+   * Attempts to send a push notification to a channel.
+   *
+   * @param notification The notification to send.
+   * @return The result of attempting to push notification to a channel.
+   */
+  def push(notification: Notification): IO[Unit] =
+    for {
+      channel <- request(discord.getChannelByID(notification.channelId))
+      _ <- request(channel.sendMessage(notification.message))
+    } yield ()
+
+  /**
+   * Sends a request to Discord and manages any rate limit exceptions.
+   *
+   * @tparam T The type of result returned by the request.
+   * @param action The action that performs the request.
+   * @return The result of attempting the request.
+   */
+  private def request[T](action: => T): IO[T] =
+    IO(RequestBuffer.request(() => action).get())
+
+  /** Shuts down this Discord Bot. */
+  def dispose(): IO[Unit] =
+    IO(if (discord.isLoggedIn) discord.logout())
 
 }
 
+/**
+ * Factory for Discord bots.
+ */
 object Bot {
 
-  def apply(client: Client, builder: ClientBuilder): IO[Bot] = {
-
-
-    ???
+  /**
+   * Attempts to create a new Discord bot.
+   *
+   * @param builder The configuration for the Discord bot.
+   * @param client  The HTTP client that connects to the ESO raid planner service.
+   * @return The result of attempting to create a new Discord bot.
+   */
+  def apply(builder: ClientBuilder, client: Client): IO[Bot] = IO {
+    val discord = builder.build()
+    val bot = new Bot(discord, client)
+    val dispatcher = discord.getDispatcher
+    dispatcher.registerListener(bot.OnMessage)
+    discord.login()
+    bot
   }
 
 }

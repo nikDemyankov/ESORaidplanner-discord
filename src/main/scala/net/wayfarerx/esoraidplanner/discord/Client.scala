@@ -22,22 +22,47 @@ package net.wayfarerx.esoraidplanner.discord
 import java.net.URL
 
 import cats.effect.IO
+import org.http4s.client.{Client => HttpClient}
+import org.http4s.client.blaze.{BlazeClientConfig, Http1Client}
 
-import org.http4s.client.blaze.BlazeClientConfig
+/**
+ * The HTTP client that sends messages to ESO raid planner.
+ *
+ * @param client The underlying HTTP client.
+ * @param url The base URL to use for all client operations.
+ */
+final class Client private(client: HttpClient[IO], url: URL) {
 
-final class Client private(url: URL) {
+  /**
+   * Attempts to send a message to ESO raid planner.
+   *
+   * @param message The message to send.
+   * @return The result of attempting to send a message to ESO raid planner.
+   */
+  def send(message: Message): IO[Unit] = {
+    // TODO Need ESO Raid Planner REST API details.
+    IO(println(s"Sending message to ESO Raid Planner ($url): $message"))
+  }
 
-  def dispose(): IO[Unit] = ???
+  /** Releases any resources associated with this client. */
+  def dispose(): IO[Unit] =
+    client.shutdown
 
 }
 
+/**
+ * Factory for HTTP clients.
+ */
 object Client {
 
-  def apply(config: BlazeClientConfig, url: URL): IO[Client] = {
-
-    IO.pure(new Client(url))
-
-    ???
-  }
+  /**
+   * Attempts to create a new HTTP client.
+   *
+   * @param config The HTTP client configuration.
+   * @param url The base URL to use for all client operations.
+   * @return The result of attempting to create a new HTTP client.
+   */
+  def apply(config: BlazeClientConfig, url: URL): IO[Client] =
+    Http1Client[IO](config) map (new Client(_, url))
 
 }

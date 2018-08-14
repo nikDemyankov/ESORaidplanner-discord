@@ -22,11 +22,17 @@ package main
 
 import java.net.URL
 
+import scala.language.existentials
 import util.{Failure, Success, Try}
-
 import cats.effect.{ExitCode, IO, IOApp}
 
+import ch.qos.logback.classic.Level
+
 object Program extends IOApp {
+
+  /** The current logging level. */
+  @volatile
+  private var _loggingLevel: Level = Level.WARN
 
   /** The pattern that matches named settings. */
   private val NamedSettingPattern =
@@ -44,18 +50,26 @@ object Program extends IOApp {
   private val RequiredSettings: Vector[Setting[_]] =
     AllSettings filter (_.required)
 
+  /** Returns the current logging level. */
+  private[main] def loggingLevel: Level = _loggingLevel
+
   /* Run the application in the IO context. */
   override def run(args: List[String]): IO[ExitCode] =
     if (args exists (a => a.equalsIgnoreCase("--help") || a.equalsIgnoreCase("-h"))) help()
     else for {
       settings <- loadSettings(args)
       config <- Configuration.configure(settings)
+      _ <- IO(if (config.quiet ^ config.verbose) {
+        if (config.quiet) _loggingLevel = Level.ERROR
+        else _loggingLevel = Level.INFO
+      })
       clientConfig <- Clients.configure(settings)
       botConfig <- Bots.configure(settings)
       serverConfig <- Servers.configure(settings)
-      result <- Client(clientConfig, new URL(config.clientUrl)).bracket { client =>
-        Bot(client, botConfig.withToken(config.botToken)).bracket { bot =>
-          Server(bot, serverConfig, config.serverAddress, config.serverPort) flatMap (_.run())
+      clientUrl <- IO(new URL(config.clientUrl))
+      result <- Client(clientConfig, clientUrl).bracket { client =>
+        Bot(botConfig.withToken(config.botToken), client).bracket { bot =>
+          Server(serverConfig, config.serverAddress, config.serverPort, bot) flatMap (_.run())
         }(_.dispose())
       }(_.dispose())
     } yield result
@@ -147,7 +161,9 @@ object Program extends IOApp {
     botToken: String,
     clientUrl: String = "https://woeler.eu/",
     serverAddress: String = "localhost",
-    serverPort: Int = 7224
+    serverPort: Int = 7224,
+    quiet: Boolean = false,
+    verbose: Boolean = false
   )
 
   /**
@@ -165,17 +181,25 @@ object Program extends IOApp {
         "The token used for authentication with Discord.", required = true)(
         (config, value) => Some(config.copy(botToken = value))),
 
-      Setting.option[Config]("client-url", Some('u'),
+      Setting.option[Config]("client-url", 'u',
         "The base URL to use for all client operations.")(
         (config, value) => Some(config.copy(clientUrl = value))),
 
-      Setting.option[Config]("server-address", Some('a'),
+      Setting.option[Config]("server-address", 'a',
         "The address to bind server operations to.")(
         (config, value) => Some(config.copy(serverAddress = value))),
 
-      Setting.option[Config]("server-port", Some('p'),
+      Setting.option[Config]("server-port", 'p',
         "The port to bind server operations to.")(
-        Setting.Ints((config, value) => Some(config.copy(serverPort = value))))
+        Setting.Ints((config, value) => Some(config.copy(serverPort = value)))),
+
+      Setting.flag("quiet", 'q',
+        "Decreases the amount of logging.")(
+        config => Some(config.copy(quiet = true))),
+
+      Setting.flag("verbose", 'v',
+        "Increases the amount of logging.")(
+        config => Some(config.copy(verbose = true)))
 
     )
 
