@@ -3,7 +3,7 @@ import Dependencies._
 lazy val root = (project in file(".")).settings(
   organization := "net.wayfarerx.esoraidplanner",
   name := "esoraidplanner-discord",
-  version := "0.1.0-SNAPSHOT",
+  version := "0.1.0",
   scalaVersion := "2.12.6",
   scalacOptions ++= Seq("-deprecation", "-feature"),
   test in assembly := {},
