@@ -19,11 +19,13 @@
 
 package net.wayfarerx.esoraidplanner.discord
 
-import cats.effect.{ExitCode, IO}
+import java.util.concurrent.CountDownLatch
 
+import cats.effect.{ExitCode, IO}
 import org.http4s._
 import org.http4s.dsl.io._
 import org.http4s.headers.`Content-Type`
+import org.http4s.server.{Server => HttpServer}
 import org.http4s.server.blaze.BlazeBuilder
 
 /**
@@ -53,6 +55,15 @@ final class Server private(builder: BlazeBuilder[IO], address: String, port: Int
       |</html>
     """.stripMargin.getBytes("UTF-8")
 
+  private val latch = new CountDownLatch(1)
+
+  private lazy val server: HttpServer[IO] = builder
+    .bindHttp(port, address)
+    .mountService(service, "/")
+    .start.unsafeRunSync()
+
+  private lazy val shutdown = server.shutdown map (_ => latch.countDown())
+
   /** The definition of the HTTP service. */
   private val service = HttpRoutes.of[IO] {
 
@@ -72,13 +83,14 @@ final class Server private(builder: BlazeBuilder[IO], address: String, port: Int
         }
       }
 
+    case GET -> Root / "shutdown" =>
+      shutdown flatMap (_ => Ok("Shutting down."))
   }
 
   /** Runs the server waiting for the JVM to exit. */
-  def run(): IO[ExitCode] = builder
-    .bindHttp(port, address)
-    .mountService(service, "/")
-    .serve.compile.drain.map(_ => ExitCode.Success)
+  def run(): IO[ExitCode] = {
+    IO(server) map (_ => latch.await()) map (_ => ExitCode.Success)
+  }
 
 }
 
