@@ -22,8 +22,9 @@ package main
 
 import java.net.URL
 
-import scala.language.existentials
+import language.existentials
 import util.{Failure, Success, Try}
+
 import cats.effect.{ExitCode, IO, IOApp}
 
 import ch.qos.logback.classic.Level
@@ -67,7 +68,7 @@ object Program extends IOApp {
       botConfig <- Bots.configure(settings)
       serverConfig <- Servers.configure(settings)
       clientUrl <- IO(new URL(config.clientUrl))
-      result <- Client(clientConfig, clientUrl).bracket { client =>
+      result <- Client(clientConfig, config.clientToken, clientUrl).bracket { client =>
         Bot(botConfig.withToken(config.botToken), client).bracket { bot =>
           Server(serverConfig, config.serverAddress, config.serverPort, bot) flatMap (_.run())
         }(_.dispose())
@@ -159,7 +160,8 @@ object Program extends IOApp {
    */
   private case class Configuration(
     botToken: String,
-    clientUrl: String = "https://woeler.eu/",
+    clientToken: String,
+    clientUrl: String = "https://esoraidplanner.com/",
     serverAddress: String = "localhost",
     serverPort: Int = 7224,
     quiet: Boolean = false,
@@ -172,7 +174,7 @@ object Program extends IOApp {
   private object Configuration extends Setting.Provider[Configuration] {
 
     /* The default (and invalid) configuration value. */
-    override def Default: Configuration = Configuration("")
+    override def Default: Configuration = Configuration("", "")
 
     /* The list of all global settings. */
     override val Settings: Vector[Setting[Configuration]] = Vector(
@@ -180,6 +182,10 @@ object Program extends IOApp {
       Setting.option[Config]("bot-token", Some('t'),
         "The token used for authentication with Discord.", required = true)(
         (config, value) => Some(config.copy(botToken = value))),
+
+      Setting.option[Config]("client-token", Some('c'),
+        "The authorization token for connecting to ESO Raidplanner.", required = true)(
+        (config, value) => Some(config.copy(clientToken = value))),
 
       Setting.option[Config]("client-url", 'u',
         "The base URL to use for all client operations.")(

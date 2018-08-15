@@ -16,7 +16,8 @@ Usage: java -jar esoraidplanner-discord.jar <setting ...>
 ### Required Settings
 
 ```
--t | --bot-token <value>  The token used for authentication with Discord.
+-t | --bot-token <value>     The token used for authentication with Discord.
+-c | --client-token <value>  The authorization token for connecting to ESO Raidplanner.
 ```
 
 ### Optional Settings
@@ -94,8 +95,13 @@ Usage: java -jar esoraidplanner-discord.jar <setting ...>
 In any Discord channel that ESORaidplanner-discord connects to users can edit their participation status in ESO
 Raidplanner events. The bot currently supports two commands:
 
- - `!signup <event> <class> <role>` where
-   - `<event>` is the ESO Raidplanner event ID.
+ - `!setup [guild]` Links an ESO Raidplanner guild to this Discord server where
+   - `[guild]` is the optional ESO Raidplanner guild ID.
+
+ - `!events` Lists the events in the linked ESO Raidplanner guild.
+
+ - `!signup <event> <class> <role>` Signs up for an event where
+   - `<event>` is the ESO Raidplanner event ID
    - `<class>` is one of
      - `Dragonknight`
      - `Nightblade`
@@ -109,9 +115,8 @@ Raidplanner events. The bot currently supports two commands:
      - `StaminaDPS`
      - `Other`
      
-     
  - `!signout <event>` where
-   - `<event>` is the ESO Raidplanner event ID.
+   - `<event>` is the ESO Raidplanner event ID
 
 ## Push Notifications
 
