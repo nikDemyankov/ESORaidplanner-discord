@@ -5,7 +5,7 @@ A Discord bot for ESO Raidplanner.
 ## Building
 
 ESORaidplanner-discord uses [SBT](https://www.scala-sbt.org/) to produce a single executable JAR file. In the project's
-root directory run `sbt assembly` to generate `target/scala-2.12/esoraidplanner-discord.jar`.
+root directory run `sbt assembly` to generate a JAR at `target/scala-2.12/esoraidplanner-discord.jar`.
 
 ## Running
 
