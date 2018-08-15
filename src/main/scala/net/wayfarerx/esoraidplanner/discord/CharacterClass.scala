@@ -27,6 +27,9 @@ sealed trait CharacterClass {
   /** The name of this class. */
   def name: String
 
+  /** The aliases of this class. */
+  def aliases: Vector[String]
+
 }
 
 /**
@@ -37,8 +40,8 @@ object CharacterClass {
   /** All of the supported character classes. */
   val All: Vector[CharacterClass] = Vector(Dragonknight, Nightblade, Sorcerer, Templar, Warden)
 
-  /** The index of all character classes by lower case name. */
-  private val index = All.map(cc => cc.name.toLowerCase -> cc).toMap
+  /** The index of all character classes by lower case name and alias. */
+  private val index = All.flatMap(cc => (cc.name.toLowerCase -> cc) +: cc.aliases.map(a => a.toLowerCase -> cc)).toMap
 
   /**
    * Attempts to extract a character class from a string.
@@ -52,26 +55,36 @@ object CharacterClass {
   /** Represents the Dragonknight class. */
   case object Dragonknight extends CharacterClass {
     override def name: String = "Dragonknight"
+
+    override def aliases: Vector[String] = Vector("D", "DK")
   }
 
   /** Represents the Nightblade class. */
   case object Nightblade extends CharacterClass {
     override def name: String = "Nightblade"
+
+    override def aliases: Vector[String] = Vector("N", "NB")
   }
 
   /** Represents the Sorcerer class. */
   case object Sorcerer extends CharacterClass {
     override def name: String = "Sorcerer"
+
+    override def aliases: Vector[String] = Vector("S", "Sorc")
   }
 
   /** Represents the Templar class. */
   case object Templar extends CharacterClass {
     override def name: String = "Templar"
+
+    override def aliases: Vector[String] = Vector("T", "Temp")
   }
 
   /** Represents the Warden class. */
   case object Warden extends CharacterClass {
     override def name: String = "Warden"
+
+    override def aliases: Vector[String] = Vector("W", "Ward")
   }
 
 }
