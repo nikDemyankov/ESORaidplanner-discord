@@ -1,6 +1,7 @@
 import Dependencies._
 
 lazy val root = (project in file(".")).settings(
+  resolvers += "Spring Lib Release Repository" at "http://repo.spring.io/libs-release/",
   organization := "net.wayfarerx.esoraidplanner",
   name := "esoraidplanner-discord",
   version := "0.1.0",
