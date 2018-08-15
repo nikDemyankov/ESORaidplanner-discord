@@ -43,9 +43,19 @@ object Program extends IOApp {
   private val AliasedSettingPattern =
     """-([a-zA-Z]+)""".r
 
+  /** The virtual setting that loads a configuration file. */
+  private val ConfigSetting = Setting.option[String](
+    "config", "Loads a configuration file."
+  )((p, _) => Some(p))
+
+  /** The virtual setting that displays the help message. */
+  private val HelpSetting = Setting.flag[Unit](
+    "help", 'h', "Shows this message and exits."
+  )(Some(_))
+
   /** The collection of all supported settings. */
   private val AllSettings: Vector[Setting[_]] =
-    Configuration.Settings ++ Bots.Settings ++ Clients.Settings ++ Servers.Settings
+    (ConfigSetting +: Configuration.Settings :+ HelpSetting) ++ Bots.Settings ++ Clients.Settings ++ Servers.Settings
 
   /** The collection of all required settings. */
   private val RequiredSettings: Vector[Setting[_]] =
@@ -56,24 +66,24 @@ object Program extends IOApp {
 
   /* Run the application in the IO context. */
   override def run(args: List[String]): IO[ExitCode] =
-    if (args exists (a => a.equalsIgnoreCase("--help") || a.equalsIgnoreCase("-h"))) help()
-    else for {
-      settings <- loadSettings(args)
-      config <- Configuration.configure(settings)
-      _ <- IO(if (config.quiet ^ config.verbose) {
-        if (config.quiet) _loggingLevel = Level.ERROR
-        else _loggingLevel = Level.INFO
-      })
-      clientConfig <- Clients.configure(settings)
-      botConfig <- Bots.configure(settings)
-      serverConfig <- Servers.configure(settings)
-      clientUrl <- IO(new URL(config.clientUrl))
-      result <- Client(clientConfig, config.clientToken, clientUrl).bracket { client =>
-        Bot(botConfig.withToken(config.botToken), client).bracket { bot =>
-          Server(serverConfig, config.serverAddress, config.serverPort, bot) flatMap (_.run())
+    loadSettings(args) flatMap { settings =>
+      if (settings.contains(HelpSetting)) help() else for {
+        config <- Configuration.configure(settings)
+        _ <- IO(if (config.quiet ^ config.verbose) {
+          if (config.quiet) _loggingLevel = Level.ERROR
+          else _loggingLevel = Level.INFO
+        })
+        clientConfig <- Clients.configure(settings)
+        botConfig <- Bots.configure(settings)
+        serverConfig <- Servers.configure(settings)
+        clientUrl <- IO(new URL(config.clientUrl))
+        result <- Client(clientConfig, config.clientToken, clientUrl).bracket { client =>
+          Bot(botConfig.withToken(config.botToken), client).bracket { bot =>
+            Server(serverConfig, config.serverAddress, config.serverPort, bot) flatMap (_.run())
+          }(_.dispose())
         }(_.dispose())
-      }(_.dispose())
-    } yield result
+      } yield result
+    }
 
   /**
    * Attempts to load all of the settings, including from any default or specified resources.
@@ -85,27 +95,30 @@ object Program extends IOApp {
     val settingsByName = Map(AllSettings.map(k => k.name -> k): _*)
     val settingsByAlias = Map(AllSettings.flatMap(k => k.alias map (_ -> k)): _*)
 
-    @annotation.tailrec
-    def parse(remaining: List[String], results: Map[Setting[_], String]): Try[Map[Setting[_], String]] =
+    def parse(remaining: List[String], results: Map[Setting[_], String]): IO[Map[Setting[_], String]] =
       remaining match {
-        case NamedSettingPattern(name) +: next => settingsByName get name match {
+        case NamedSettingPattern(name) +: next => settingsByName get name.toLowerCase match {
           case Some(setting) =>
             if (setting.parameterized) next.headOption match {
-              case Some(value) => parse(next.tail, results + (setting -> value))
-              case None => Failure(new IllegalArgumentException(Messages.missingSettingValue(setting)))
+              case Some(value) if setting == ConfigSetting =>
+                Config(value) flatMap { config => parse(config ::: next.tail, results) }
+              case Some(value) =>
+                parse(next.tail, results + (setting -> value))
+              case None =>
+                IO.raiseError(new IllegalArgumentException(Messages.missingSettingValue(setting)))
             } else parse(next, results + (setting -> ""))
           case None =>
-            Failure(new IllegalArgumentException(Messages.invalidSettingName(name)))
+            IO.raiseError(new IllegalArgumentException(Messages.invalidSettingName(name)))
         }
         case AliasedSettingPattern(aliases) +: next =>
-          extract(aliases, next, results) match {
+          extract(aliases.toLowerCase, next, results) match {
             case Success((newRemaining, newResults)) => parse(newRemaining, newResults)
-            case Failure(exception) => Failure(exception)
+            case Failure(exception) => IO.raiseError(exception)
           }
         case invalid +: _ =>
-          Failure(new IllegalArgumentException(Messages.invalidCommandLineArgument(invalid)))
+          IO.raiseError(new IllegalArgumentException(Messages.invalidCommandLineArgument(invalid)))
         case _ =>
-          Success(results)
+          IO.pure(results)
       }
 
     @annotation.tailrec
@@ -128,13 +141,11 @@ object Program extends IOApp {
       }
 
     parse(args, Map.empty) flatMap { parsed =>
-      RequiredSettings.filterNot(parsed.keySet) match {
-        case Vector() => Success(parsed)
-        case missing => Failure(new IllegalArgumentException(Messages.missingRequiredSettings(missing)))
-      }
-    } match {
-      case Success(value) => IO.pure(value)
-      case Failure(exception) => IO.raiseError(exception)
+      if (parsed.contains(HelpSetting)) IO.pure(parsed) else
+        RequiredSettings.filterNot(parsed.keySet) match {
+          case Vector() => IO.pure(parsed)
+          case missing => IO.raiseError(new IllegalArgumentException(Messages.missingRequiredSettings(missing)))
+        }
     }
   }
 
@@ -145,9 +156,7 @@ object Program extends IOApp {
    */
   private def help(): IO[ExitCode] = IO(println(Messages.helpMessage(
     "Required settings." -> RequiredSettings,
-    "Optional settings." -> (Configuration.Settings.filterNot(_.required) :+ Setting.flag[Unit](
-      "help", 'h', "Shows this message and exits."
-    )(Some(_))),
+    "Optional settings." -> (ConfigSetting +: Configuration.Settings :+ HelpSetting).filterNot(_.required),
     "Discord bot settings." -> Bots.Settings.filterNot(_.required),
     "HTTP client settings." -> Clients.Settings.filterNot(_.required),
     "HTTP server settings." -> Servers.Settings.filterNot(_.required)
@@ -179,7 +188,7 @@ object Program extends IOApp {
     /* The list of all global settings. */
     override val Settings: Vector[Setting[Configuration]] = Vector(
 
-      Setting.option[Config]("bot-token", Some('t'),
+      Setting.option[Config]("bot-token", Some('b'),
         "The token used for authentication with Discord.", required = true)(
         (config, value) => Some(config.copy(botToken = value))),
 

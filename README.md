@@ -16,13 +16,14 @@ Usage: java -jar esoraidplanner-discord.jar <setting ...>
 ### Required Settings
 
 ```
--t | --bot-token <value>     The token used for authentication with Discord.
+-b | --bot-token <value>     The token used for authentication with Discord.
 -c | --client-token <value>  The authorization token for connecting to ESO Raidplanner.
 ```
 
 ### Optional Settings
 
 ```
+--config <value>               Loads a configuration file.
 -u | --client-url <value>      The base URL to use for all client operations.
 -a | --server-address <value>  The address to bind server operations to.
 -p | --server-port <value>     The port to bind server operations to.

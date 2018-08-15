@@ -89,7 +89,7 @@ final class Bot private(discord: IDiscordClient, client: Client) {
       def deliver(remaining: Vector[Message]): IO[Unit] = remaining match {
         case head +: tail =>
           client.send(head)
-            .flatMap(r => if (r.nonEmpty) request(event.getMessage.reply(r)) else IO.pure(()))
+            .flatMap(r => if (r.nonEmpty) request(event.getChannel.sendMessage(r)) else IO.pure(()))
             .flatMap(_ => deliver(tail))
         case _ =>
           IO.pure(())
