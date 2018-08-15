@@ -137,4 +137,3 @@ Raidplanner events. The bot currently supports four commands:
 ESORaidplanner-discord contains an embedded HTTP server (located at [http://localhost:7224](http://localhost:7224) by
 default) that enables external push notification delivery to Discord channels. See
 [http://localhost:7224/push](http://localhost:7224/push) for an example of how push notifications are published.
-
