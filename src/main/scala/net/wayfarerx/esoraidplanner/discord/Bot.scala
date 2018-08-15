@@ -26,6 +26,8 @@ import sx.blah.discord.api.{ClientBuilder, IDiscordClient}
 import sx.blah.discord.handle.impl.events.guild.channel.message.MessageEvent
 import sx.blah.discord.util.RequestBuffer
 
+import util.Try
+
 /**
  * The Discord bot that sends and receives messages.
  *
@@ -45,16 +47,39 @@ final class Bot private(discord: IDiscordClient, client: Client) {
    * @return The result of the attempt to handle the event.
    */
   private def received(event: MessageEvent): IO[Unit] =
-    if (!event.getMessage.getContent.contains('!')) IO.pure(()) else {
+    if (event.getMessage.getAuthor == discord.getOurUser || !event.getMessage.getContent.contains('!')) {
+      IO.pure(())
+    } else {
+      val userHandle = s"${event.getAuthor.getName}#${event.getAuthor.getDiscriminator}"
       val userId = event.getAuthor.getLongID
-      val guildId = event.getGuild.getLongID
+      val channelId = event.getChannel.getLongID
+      val serverId = event.getGuild.getLongID
 
       @annotation.tailrec
       def scan(remaining: Vector[String], messages: Vector[Message]): Vector[Message] = remaining match {
+        case cmd +: next if cmd equalsIgnoreCase "!setup" =>
+          Try(next.headOption.map(_.toInt)).toOption.flatten match {
+            case Some(guildId) =>
+              scan(next.tail, messages :+ Message.Setup(userHandle, userId, serverId, channelId, Some(guildId)))
+            case None =>
+              scan(next, messages :+ Message.Setup(userHandle, userId, serverId, channelId, None))
+          }
+        case cmd +: next if cmd equalsIgnoreCase "!events" =>
+          scan(next, messages :+ Message.Events(userHandle, userId, serverId, channelId))
         case cmd +: eventId +: CharacterClass(cls) +: CharacterRole(role) +: next if cmd equalsIgnoreCase "!signup" =>
-          scan(next, messages :+ Message.SignUp(userId, guildId, eventId, cls, role))
+          Try(eventId.toInt).toOption match {
+            case Some(eid) =>
+              scan(next, messages :+ Message.Signup(userHandle, userId, serverId, channelId, eid, cls, role))
+            case None =>
+              scan(next, messages)
+          }
         case cmd +: eventId +: next if cmd equalsIgnoreCase "!signoff" =>
-          scan(next, messages :+ Message.SignOff(userId, guildId, eventId))
+          Try(eventId.toInt).toOption match {
+            case Some(eid) =>
+              scan(next, messages :+ Message.Signoff(userHandle, userId, serverId, channelId, eid))
+            case None =>
+              scan(next, messages)
+          }
         case _ +: next =>
           scan(next, messages)
         case _ =>
@@ -63,7 +88,9 @@ final class Bot private(discord: IDiscordClient, client: Client) {
 
       def deliver(remaining: Vector[Message]): IO[Unit] = remaining match {
         case head +: tail =>
-          client.send(head) flatMap (_ => deliver(tail))
+          client.send(head)
+            .flatMap(r => if (r.nonEmpty) request(event.getChannel.sendMessage(r)) else IO.pure(()))
+            .flatMap(_ => deliver(tail))
         case _ =>
           IO.pure(())
       }

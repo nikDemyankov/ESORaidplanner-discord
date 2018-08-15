@@ -30,18 +30,54 @@ sealed trait Message
 object Message {
 
   /**
+   * Represents a user setting up a guild.
+   *
+   * @param userHandle The Discord handle of the user.
+   * @param userId The Discord ID of the user.
+   * @param serverId The Discord ID of the server.
+   * @param channelId The Discord ID of the channel.
+   * @param guildId The ID of the guild.
+   */
+  case class Setup(
+    userHandle: String,
+    userId: Long,
+    serverId: Long,
+    channelId: Long,
+    guildId: Option[Int]
+  ) extends Message
+
+  /**
+   * Represents a request to list available events.
+   *
+   * @param userHandle The Discord handle of the user.
+   * @param userId The Discord ID of the user.
+   * @param serverId The Discord ID of the server.
+   * @param channelId The Discord ID of the channel.
+   */
+  case class Events(
+    userHandle: String,
+    userId: Long,
+    serverId: Long,
+    channelId: Long
+  ) extends Message
+
+  /**
    * Represents a user volunteering for an event.
    *
+   * @param userHandle The Discord handle of the user.
    * @param userId The Discord ID of the user.
-   * @param guildId The Discord ID of the guild.
+   * @param serverId The Discord ID of the server.
+   * @param channelId The Discord ID of the channel.
    * @param eventId The ID of the event.
    * @param characterClass The user's character class.
    * @param characterRole The user's character role.
    */
-  case class SignUp(
+  case class Signup(
+    userHandle: String,
     userId: Long,
-    guildId: Long,
-    eventId: String,
+    serverId: Long,
+    channelId: Long,
+    eventId: Int,
     characterClass: CharacterClass,
     characterRole: CharacterRole
   ) extends Message
@@ -49,14 +85,18 @@ object Message {
   /**
    * Represents a user abandoning an event.
    *
+   * @param userHandle The Discord handle of the user.
    * @param userId The Discord ID of the user.
-   * @param guildId The Discord ID of the guild.
+   * @param serverId The Discord ID of the server.
+   * @param channelId The Discord ID of the channel.
    * @param eventId The ID of the event.
    */
-  case class SignOff(
+  case class Signoff(
+    userHandle: String,
     userId: Long,
-    guildId: Long,
-    eventId: String
+    serverId: Long,
+    channelId: Long,
+    eventId: Int
   ) extends Message
 
 }

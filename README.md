@@ -16,12 +16,14 @@ Usage: java -jar esoraidplanner-discord.jar <setting ...>
 ### Required Settings
 
 ```
--t | --bot-token <value>  The token used for authentication with Discord.
+-b | --bot-token <value>     The token used for authentication with Discord.
+-c | --client-token <value>  The authorization token for connecting to ESO Raidplanner.
 ```
 
 ### Optional Settings
 
 ```
+--config <value>               Loads a configuration file.
 -u | --client-url <value>      The base URL to use for all client operations.
 -a | --server-address <value>  The address to bind server operations to.
 -p | --server-port <value>     The port to bind server operations to.
@@ -92,26 +94,43 @@ Usage: java -jar esoraidplanner-discord.jar <setting ...>
 ## The Discord Bot
 
 In any Discord channel that ESORaidplanner-discord connects to users can edit their participation status in ESO
-Raidplanner events. The bot currently supports two commands:
+Raidplanner events. The bot currently supports four commands:
 
- - `!signup <event> <class> <role>` where
-   - `<event>` is the ESO Raidplanner event ID.
-   - `<class>` is one of
-     - `Dragonknight`
-     - `Nightblade`
-     - `Sorcerer`
-     - `Templar`
-     - `Warden`
-   - `<role>` is one of
-     - `Tank`
-     - `Healer`
-     - `MagickaDPS`
-     - `StaminaDPS`
-     - `Other`
+ - `!setup [guild]`
+   
+   Links an ESO Raidplanner guild to the current Discord server. When the `[guild]` parameter is omitted the bot will
+   list the guilds you can administer on ESO Raidplanner and their IDs. When the `[guild]` parameter is provided it must
+   match the numeric ID of a guild in ESO Raidplanner.
+
+ - `!events`
+  
+   Lists the events in the linked ESO Raidplanner guild.
+
+ - `!signup <event> <class> <role>`
+  
+   Signs you up for a given event with a class and role. The `<event>` must be an ESO Raidplanner event ID. The
+   `<class>` parameter must be the name of an ESO class or a common abbreviation of one. For example:
+   
+     - `Dragonknight`, `DK` or `D`
+     - `Nightblade`, `NB` or `N`
+     - `Sorcerer`, `Sorc` or `S`
+     - `Templar`, `Temp` or `T`
+     - `Warden`, `Ward` or `W`
      
+   All class names and abbreviations are case insensitive. The `<role>` parameter must be the name of a role in a group
+   or a common abbreviation of one. For example:
+   
+     - `Tank` or `T`
+     - `Healer`, `Heals`, `Heal` or `H`
+     - `MagickaDPS`, `MDPS`, `MagickaDD`, `MDD`, `MD` or `M`
+     - `StaminaDPS`, `SDPS`, `StaminaDD`, `SDD`, `SD` or `S`
+     - `Other` or `O`
      
- - `!signout <event>` where
-   - `<event>` is the ESO Raidplanner event ID.
+   All role names and abbreviations are also case insensitive.
+     
+ - `!signout <event>`
+   
+   Signs you out of an event with the ESO Raidplanner event ID of `<event>`.
 
 ## Push Notifications
 
