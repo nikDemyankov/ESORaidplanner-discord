@@ -99,4 +99,19 @@ object Message {
     eventId: Int
   ) extends Message
 
+  /**
+   * Represents a request to show the help message.
+   *
+   * @param userHandle The Discord handle of the user.
+   * @param userId The Discord ID of the user.
+   * @param serverId The Discord ID of the server.
+   * @param channelId The Discord ID of the channel.
+   */
+  case class Help(
+    userHandle: String,
+    userId: Long,
+    serverId: Long,
+    channelId: Long
+  ) extends Message
+
 }

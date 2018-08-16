@@ -80,6 +80,9 @@ final class Bot private(discord: IDiscordClient, client: Client) {
             case None =>
               scan(next, messages)
           }
+        case cmd +: next
+          if cmd.equalsIgnoreCase("!help") || cmd.equalsIgnoreCase("!commands") =>
+          scan(next, messages :+ Message.Help(userHandle, userId, serverId, channelId))
         case _ +: next =>
           scan(next, messages)
         case _ =>

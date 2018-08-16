@@ -49,7 +49,8 @@ final class Client private(
   setup: Uri,
   events: Uri,
   signup: Uri,
-  signoff: Uri
+  signoff: Uri,
+  help: Uri
 ) {
 
   import Client.Recoverable
@@ -90,6 +91,12 @@ final class Client private(
         "discord_server_id" -> serverId.toString,
         "discord_channel_id" -> channelId.toString,
         "event_id" -> eventId.toString))
+    case Message.Help(userHandle, userId, serverId, channelId) =>
+      post(help, UrlForm(
+        "discord_handle" -> userHandle,
+        "discord_user_id" -> userId.toString,
+        "discord_server_id" -> serverId.toString,
+        "discord_channel_id" -> channelId.toString))
   }
 
   /**
@@ -161,8 +168,9 @@ object Client {
       events <- resolve("/api/discord/events")
       signup <- resolve("/api/discord/signup")
       signoff <- resolve("/api/discord/signoff")
+      help <- resolve("/api/discord/help")
       httpClient <- Http1Client[IO](config)
-    } yield new Client(httpClient, authToken, setup, events, signup, signoff)
+    } yield new Client(httpClient, authToken, setup, events, signup, signoff, help)
   }
 
   /** A signal that an HTTP request was not successful. */

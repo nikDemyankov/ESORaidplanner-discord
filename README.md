@@ -94,7 +94,7 @@ Usage: java -jar esoraidplanner-discord.jar <setting ...>
 ## The Discord Bot
 
 In any Discord channel that ESORaidplanner-discord connects to users can edit their participation status in ESO
-Raidplanner events. The bot currently supports four commands:
+Raidplanner events. The bot currently supports six commands:
 
  - `!setup [guild]`
    
@@ -131,6 +131,10 @@ Raidplanner events. The bot currently supports four commands:
  - `!signout <event>`
    
    Signs you out of an event with the ESO Raidplanner event ID of `<event>`.
+     
+ - `!help` or `!commands`
+   
+   Lists the commands that are available in Discord chat.
 
 ## Push Notifications
 
