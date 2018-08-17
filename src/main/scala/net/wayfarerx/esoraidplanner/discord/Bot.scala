@@ -19,25 +19,36 @@
 
 package net.wayfarerx.esoraidplanner.discord
 
-import cats.effect.IO
+import java.time.Instant
 
 import collection.JavaConverters._
+import concurrent.duration._
 import util.Try
+
+import cats.effect.IO
+
+import org.log4s._
 
 import sx.blah.discord.api.events.IListener
 import sx.blah.discord.api.{ClientBuilder, IDiscordClient}
+import sx.blah.discord.handle.impl.events.ReadyEvent
 import sx.blah.discord.handle.impl.events.guild.channel.message.MessageEvent
+import sx.blah.discord.handle.obj.{IChannel, IMessage}
 import sx.blah.discord.util.RequestBuffer
 
 /**
  * The Discord bot that sends and receives messages.
  *
  * @param discord The Discord client.
+ * @param lookback The maximum length of time to look back in message histories.
  * @param client  The ESO raid planner client.
  */
-final class Bot private(discord: IDiscordClient, client: Client) {
+final class Bot private(discord: IDiscordClient, lookback: FiniteDuration, client: Client) {
 
   import Bot._
+
+  /** The logger to use. */
+  private val logger = getLogger
 
   /** The message event handler. */
   private val OnMessage: IListener[MessageEvent] =
@@ -81,6 +92,54 @@ final class Bot private(discord: IDiscordClient, client: Client) {
       case None => IO.raiseError(new IllegalArgumentException(s"Unknown server ID: $serverId"))
     }
 
+  /** Handles receiving a ready event. */
+  def ready(): IO[Unit] = {
+
+    def inspectGuilds(remaining: Vector[GuildInfo]): IO[Unit] = remaining match {
+      case info +: next =>
+        println(s"guild:  ${info.id}")
+        request(discord.getGuildByID(info.discordId)) map (Option(_)) flatMap {
+          case Some(guild) =>
+            request(guild.getChannels.asScala.toVector) flatMap (inspectChannels(info, _))
+          case None =>
+            IO(logger.warn(s"Invalid Discord guild ID: ${info.discordId}"))
+        } flatMap (_ => inspectGuilds(next))
+      case _ =>
+        IO.pure(())
+    }
+
+    def inspectChannels(info: GuildInfo, remaining: Vector[IChannel]): IO[Unit] = remaining match {
+      case channel +: next =>
+        println(s"channel: ${channel.getLongID}")
+        val since = implicitly[Ordering[Instant]].max(
+          info.discordLastActivity,
+          Instant.ofEpochMilli((Deadline.now - lookback).time.toMillis)
+        )
+        request(channel.getMessageHistoryFrom(since)) flatMap { history =>
+          handleMessages(history.iterator().asScala.toVector)
+        } flatMap (_ => inspectChannels(info, next))
+      case _ =>
+        IO.pure(())
+    }
+
+    def handleMessages(remaining: Vector[IMessage]): IO[Unit] = remaining match {
+      case message +: next =>
+        println(s"msg:    ${message.getLongID}")
+        received(message) flatMap (_ => handleMessages(next))
+      case _ =>
+        IO.pure(())
+    }
+
+    for {
+      string <- client.send(Message.LastActivity)
+      guilds <- GuildInfo.decodeAll(string) match {
+        case Right(v) => IO.pure(v)
+        case Left(t) => IO.raiseError(t)
+      }
+      result <- inspectGuilds(guilds)
+    } yield result
+  }
+
   /**
    * Attempts to send a push notification to a channel.
    *
@@ -121,15 +180,17 @@ object Bot {
   /**
    * Attempts to create a new Discord bot.
    *
-   * @param builder The configuration for the Discord bot.
-   * @param client  The HTTP client that connects to the ESO raid planner service.
+   * @param builder  The configuration for the Discord bot.
+   * @param lookback The maximum length of time to look back in message histories.
+   * @param client   The HTTP client that connects to the ESO raid planner service.
    * @return The result of attempting to create a new Discord bot.
    */
-  def apply(builder: ClientBuilder, client: Client): IO[Bot] = IO {
+  def apply(builder: ClientBuilder, lookback: FiniteDuration, client: Client): IO[Bot] = IO {
     val discord = builder.build()
-    val bot = new Bot(discord, client)
+    val bot = new Bot(discord, lookback, client)
     val dispatcher = discord.getDispatcher
     dispatcher.registerListener(bot.OnMessage)
+    dispatcher.registerListener(bot.OnReady)
     discord.login()
     bot
   }

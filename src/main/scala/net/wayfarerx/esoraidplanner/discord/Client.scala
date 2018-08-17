@@ -42,6 +42,8 @@ import org.http4s.client.blaze.{BlazeClientConfig, Http1Client}
  * @param events    The URI for the events operation.
  * @param signup    The URI for the signup operation.
  * @param signoff   The URI for the signoff operation.
+ * @param help   The URI for the help operation.
+ * @param lastActivity   The URI for the last activity operation.
  */
 final class Client private(
   client: HttpClient[IO],
@@ -50,7 +52,8 @@ final class Client private(
   events: Uri,
   signup: Uri,
   signoff: Uri,
-  help: Uri
+  help: Uri,
+  lastActivity: Uri
 ) {
 
   import Client.Recoverable
@@ -158,8 +161,9 @@ object Client {
       signup <- resolve("/api/discord/signup")
       signoff <- resolve("/api/discord/signoff")
       help <- resolve("/api/discord/help")
+      lastActivity <- resolve("/api/discord/last-activity")
       httpClient <- Http1Client[IO](config)
-    } yield new Client(httpClient, authToken, setup, events, signup, signoff, help)
+    } yield new Client(httpClient, authToken, setup, events, signup, signoff, help, lastActivity)
   }
 
   /** A signal that an HTTP request was not successful. */
