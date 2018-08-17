@@ -28,13 +28,15 @@ import org.http4s.headers.`Content-Type`
 import org.http4s.server.{Server => HttpServer}
 import org.http4s.server.blaze.BlazeBuilder
 
+import scala.util.Try
+
 /**
  * The HTTP server that handles incoming push notifications.
  *
  * @param builder The underlying HTTP server builder.
  * @param address The address to bind to.
- * @param port The port to bind to.
- * @param bot The bot to forward notifications to.
+ * @param port    The port to bind to.
+ * @param bot     The bot to forward notifications to.
  */
 final class Server private(builder: BlazeBuilder[IO], address: String, port: Int, bot: Bot) {
 
@@ -47,7 +49,7 @@ final class Server private(builder: BlazeBuilder[IO], address: String, port: Int
       |  </head>
       |  <body>
       |    <form action="/push" method="post">
-      |      Channel ID: <input type="text" name="channel-id" /><br />
+      |      Channel ID: <input type="text" name="discord_channel_id" /><br />
       |      Message: <input type="text" name="message" /><br />
       |      <input type = "submit" value ="Send Notification" />
       |    </form>
@@ -55,14 +57,18 @@ final class Server private(builder: BlazeBuilder[IO], address: String, port: Int
       |</html>
     """.stripMargin.getBytes("UTF-8")
 
+  /** The latch that controls server shutdown. */
   private val latch = new CountDownLatch(1)
 
+  /** The active server instance. */
   private lazy val server: HttpServer[IO] = builder
     .bindHttp(port, address)
     .mountService(service, "/")
     .start.unsafeRunSync()
 
-  private lazy val shutdown = server.shutdown map (_ => latch.countDown())
+  /** The shutdown command. */
+  private lazy val shutdown =
+    IO(server) flatMap (_.shutdown) map (_ => latch.countDown())
 
   /** The definition of the HTTP service. */
   private val service = HttpRoutes.of[IO] {
@@ -73,24 +79,24 @@ final class Server private(builder: BlazeBuilder[IO], address: String, port: Int
     case req@POST -> Root / "push" =>
       req.decode[UrlForm] { data =>
         (for {
-          channelId <- data getFirst "channel-id"
+          channelId <- data getFirst "discord_channel_id" flatMap (i => Try(i.toLong).toOption)
           message <- data getFirst "message"
-        } yield Notification(channelId.toLong, message)) match {
+        } yield Notification(channelId, message)) match {
           case Some(notification) =>
             bot.push(notification) flatMap (_ => Ok("Notification sent!"))
           case None =>
-            BadRequest(s"Invalid data: $data")
+            BadRequest(s"Invalid push data: $data")
         }
       }
 
     case GET -> Root / "shutdown" =>
       shutdown flatMap (_ => Ok("Shutting down."))
+
   }
 
   /** Runs the server waiting for the JVM to exit. */
-  def run(): IO[ExitCode] = {
+  def run(): IO[ExitCode] =
     IO(server) map (_ => latch.await()) map (_ => ExitCode.Success)
-  }
 
 }
 
@@ -104,8 +110,8 @@ object Server {
    *
    * @param builder The underlying HTTP server builder.
    * @param address The address to bind to.
-   * @param port The port to bind to.
-   * @param bot The bot to forward notifications to.
+   * @param port    The port to bind to.
+   * @param bot     The bot to forward notifications to.
    * @return The result of attempting to create a new HTTP server.
    */
   def apply(builder: BlazeBuilder[IO], address: String, port: Int, bot: Bot): IO[Server] =
