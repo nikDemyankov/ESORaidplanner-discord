@@ -47,7 +47,7 @@ final class Bot private(discord: IDiscordClient, client: Client) {
    * @return The result of the attempt to handle the event.
    */
   private def received(event: MessageEvent): IO[Unit] =
-    if (event.getMessage.getAuthor == discord.getOurUser || !event.getMessage.getContent.contains('!')) {
+    if (event.getMessage.getAuthor == discord.getOurUser || !event.getMessage.getContent.trim.startsWith("!")) {
       IO.pure(())
     } else {
       val userHandle = s"${event.getAuthor.getName}#${event.getAuthor.getDiscriminator}"
