@@ -22,6 +22,9 @@ package net.wayfarerx.esoraidplanner.discord
 import java.util.concurrent.CountDownLatch
 
 import cats.effect.{ExitCode, IO}
+
+import io.circe.syntax._
+
 import org.http4s._
 import org.http4s.dsl.io._
 import org.http4s.headers.`Content-Type`
@@ -66,9 +69,6 @@ final class Server private(builder: BlazeBuilder[IO], address: String, port: Int
     .mountService(service, "/")
     .start.unsafeRunSync()
 
-  /** The shutdown command. */
-  private lazy val shutdown =
-    IO(server) flatMap (_.shutdown) map (_ => latch.countDown())
 
   /** The definition of the HTTP service. */
   private val service = HttpRoutes.of[IO] {
@@ -89,8 +89,11 @@ final class Server private(builder: BlazeBuilder[IO], address: String, port: Int
         }
       }
 
+    case GET -> Root / "channels" / LongVar(serverId) =>
+      bot.channels(serverId) flatMap (c => Ok(c.asJson.noSpaces))
+
     case GET -> Root / "shutdown" =>
-      shutdown flatMap (_ => Ok("Shutting down."))
+      IO(server) flatMap (_.shutdown) map (_ => latch.countDown()) flatMap (_ => Ok("Shutting down."))
 
   }
 

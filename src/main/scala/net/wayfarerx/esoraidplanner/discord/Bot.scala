@@ -21,12 +21,13 @@ package net.wayfarerx.esoraidplanner.discord
 
 import cats.effect.IO
 
+import collection.JavaConverters._
+import util.Try
+
 import sx.blah.discord.api.events.IListener
 import sx.blah.discord.api.{ClientBuilder, IDiscordClient}
 import sx.blah.discord.handle.impl.events.guild.channel.message.MessageEvent
 import sx.blah.discord.util.RequestBuffer
-
-import util.Try
 
 /**
  * The Discord bot that sends and receives messages.
@@ -102,6 +103,18 @@ final class Bot private(discord: IDiscordClient, client: Client) {
         event.getMessage.getContent.split("""\s+""").iterator.filterNot(_.isEmpty).toVector,
         Vector.empty
       ))
+    }
+
+  /**
+   * Attempts to return the channels in the specified server.
+   *
+   * @param serverId The ID of the server to list the channels of.
+   * @return The result of attempting to return the channels in the specified server.
+   */
+  def channels(serverId: Long): IO[Vector[(Long, String)]] =
+    request(discord.getGuildByID(serverId)) map (Option(_)) flatMap {
+      case Some(guild) => request(guild.getChannels).map(_.iterator.asScala.map(c => c.getLongID -> c.getName).toVector)
+      case None => IO.raiseError(new IllegalArgumentException(s"Unknown server ID: $serverId"))
     }
 
   /**
