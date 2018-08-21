@@ -37,6 +37,8 @@ import sx.blah.discord.util.RequestBuffer
  */
 final class Bot private(discord: IDiscordClient, client: Client) {
 
+  import Bot._
+
   /** The message event handler. */
   private val OnMessage: IListener[MessageEvent] =
     (event: MessageEvent) => received(event).unsafeRunSync()
@@ -51,58 +53,20 @@ final class Bot private(discord: IDiscordClient, client: Client) {
     if (event.getMessage.getAuthor == discord.getOurUser || !event.getMessage.getContent.trim.startsWith("!")) {
       IO.pure(())
     } else {
-      val userHandle = s"${event.getAuthor.getName}#${event.getAuthor.getDiscriminator}"
-      val userId = event.getAuthor.getLongID
-      val channelId = event.getChannel.getLongID
-      val serverId = event.getGuild.getLongID
-
-      @annotation.tailrec
-      def scan(remaining: Vector[String], messages: Vector[Message]): Vector[Message] = remaining match {
-        case cmd +: next if cmd equalsIgnoreCase "!setup" =>
-          Try(next.headOption.map(_.toInt)).toOption.flatten match {
-            case Some(guildId) =>
-              scan(next.tail, messages :+ Message.Setup(userHandle, userId, serverId, channelId, Some(guildId)))
-            case None =>
-              scan(next, messages :+ Message.Setup(userHandle, userId, serverId, channelId, None))
-          }
-        case cmd +: next if cmd equalsIgnoreCase "!events" =>
-          scan(next, messages :+ Message.Events(userHandle, userId, serverId, channelId))
-        case cmd +: eventId +: CharacterClass(cls) +: CharacterRole(role) +: next if cmd equalsIgnoreCase "!signup" =>
-          Try(eventId.toInt).toOption match {
-            case Some(eid) =>
-              scan(next, messages :+ Message.Signup(userHandle, userId, serverId, channelId, eid, cls, role))
-            case None =>
-              scan(next, messages)
-          }
-        case cmd +: eventId +: next if cmd equalsIgnoreCase "!signoff" =>
-          Try(eventId.toInt).toOption match {
-            case Some(eid) =>
-              scan(next, messages :+ Message.Signoff(userHandle, userId, serverId, channelId, eid))
-            case None =>
-              scan(next, messages)
-          }
-        case cmd +: next
-          if cmd.equalsIgnoreCase("!help") || cmd.equalsIgnoreCase("!commands") =>
-          scan(next, messages :+ Message.Help(userHandle, userId, serverId, channelId))
-        case _ +: next =>
-          scan(next, messages)
-        case _ =>
-          messages
-      }
-
-      def deliver(remaining: Vector[Message]): IO[Unit] = remaining match {
-        case head +: tail =>
-          client.send(head)
-            .flatMap(r => if (r.nonEmpty) request(event.getChannel.sendMessage(r)) else IO.pure(()))
-            .flatMap(_ => deliver(tail))
-        case _ =>
-          IO.pure(())
-      }
-
-      deliver(scan(
-        event.getMessage.getContent.split("""\s+""").iterator.filterNot(_.isEmpty).toVector,
-        Vector.empty
-      ))
+      val tokens = event.getMessage.getContent.split("""\s+""").iterator.filterNot(_.isEmpty).toVector
+      Commands get tokens.head.substring(1).toLowerCase map { cmd =>
+        (cmd.parse(Message.Metadata(
+          s"${event.getAuthor.getName}#${event.getAuthor.getDiscriminator}",
+          event.getAuthor.getLongID,
+          event.getChannel.getLongID,
+          event.getGuild.getLongID
+        ), tokens.tail) match {
+          case Left(errorMessage) =>
+            request(event.getMessage.reply(errorMessage))
+          case Right(message) =>
+            client.send(message).flatMap(r => if (r.nonEmpty) request(event.getChannel.sendMessage(r)) else IO.pure(()))
+        }) map (_ => ())
+      } getOrElse IO.pure(())
     }
 
   /**
@@ -150,6 +114,10 @@ final class Bot private(discord: IDiscordClient, client: Client) {
  */
 object Bot {
 
+  /** The map of all commands by their names. */
+  private val Commands = Seq(Command.Setup, Command.Events, Command.Signup, Command.Signoff, Command.Help)
+    .flatMap(c => c.names map (_ -> c)).toMap
+
   /**
    * Attempts to create a new Discord bot.
    *
@@ -164,6 +132,174 @@ object Bot {
     dispatcher.registerListener(bot.OnMessage)
     discord.login()
     bot
+  }
+
+  /**
+   * Base type for command parsers.
+   */
+  sealed abstract class Command(val names: String*) {
+
+    /**
+     * Attempts to parse a command from the specified arguments.
+     *
+     * @param metadata The message metadata.
+     * @param args     The arguments to parse.
+     * @return The resulting message or an error message.
+     */
+    def parse(metadata: Message.Metadata, args: Vector[String]): Either[String, Message]
+
+  }
+
+  /**
+   * Definitions of the supported commands.
+   */
+  object Command {
+
+    /** The invalid guild ID error message fragment. */
+    private def invalidGuildId(guildId: String): String =
+      s""""$guildId" is not a valid guild ID"""
+
+    /** The missing event ID error message fragment. */
+    private def missingEventId: String = "the event ID is missing"
+
+    /** The invalid event ID error message fragment. */
+    private def invalidEventId(eventId: String): String =
+      s""""$eventId" is not a valid event ID"""
+
+    /** The missing class error message fragment. */
+    private def missingClass: String = "the class is missing"
+
+    /** The invalid class error message fragment. */
+    private def invalidClass(cls: String): String =
+      s""""$cls" is not a valid class"""
+
+    /** The missing role error message fragment. */
+    private def missingRole: String = "the role is missing"
+
+    /** The invalid role error message fragment. */
+    private def invalidRole(role: String): String =
+      s""""$role" is not a valid role"""
+
+    /** The usage error message fragment. */
+    private def usage: String = "Type `!help` for usage instructions"
+
+    /**
+     * Constructs an error message from error message fragments.
+     *
+     * @param fragments The error message fragments to use.
+     * @return The final error message.
+     */
+    private def errorMessage(fragments: String*): String = fragments match {
+      case Seq(single) => s"$single. $usage."
+      case init :+ last => s"${init mkString ", "} & $last. $usage."
+      case _ => s"$usage."
+    }
+
+    /**
+     * The !setup command.
+     */
+    object Setup extends Command("setup") {
+      override def parse(metadata: Message.Metadata, args: Vector[String]): Either[String, Message] =
+        args.headOption match {
+          case Some(AsInt(guildId)) => Right(Message.Setup(metadata, Some(guildId)))
+          case Some(guildId) => Left(errorMessage(invalidGuildId(guildId)))
+          case None => Right(Message.Setup(metadata, None))
+        }
+    }
+
+    /**
+     * The !events command.
+     */
+    object Events extends Command("events") {
+      override def parse(metadata: Message.Metadata, args: Vector[String]): Either[String, Message] =
+        Right(Message.Events(metadata))
+    }
+
+    /**
+     * The !signup command.
+     */
+    object Signup extends Command("signup") {
+      override def parse(metadata: Message.Metadata, args: Vector[String]): Either[String, Message] =
+        args take 3 match {
+
+          case Vector(AsInt(eventId), CharacterClass(cls), CharacterRole(role)) =>
+            Right(Message.Signup(metadata, eventId, cls, role))
+          case Vector(AsInt(_), cls, CharacterRole(_)) =>
+            Left(errorMessage(invalidClass(cls)))
+          case Vector(AsInt(_), CharacterClass(_), role) =>
+            Left(errorMessage(invalidRole(role)))
+          case Vector(AsInt(_), cls, role) =>
+            Left(errorMessage(invalidClass(cls), invalidRole(role)))
+          case Vector(eventId, CharacterClass(_), CharacterRole(_)) =>
+            Left(errorMessage(invalidEventId(eventId)))
+          case Vector(eventId, cls, CharacterRole(_)) =>
+            Left(errorMessage(invalidEventId(eventId), invalidClass(cls)))
+          case Vector(eventId, CharacterClass(_), role) =>
+            Left(errorMessage(invalidEventId(eventId), invalidRole(role)))
+          case Vector(eventId, cls, role) =>
+            Left(errorMessage(invalidEventId(eventId), invalidClass(cls), invalidRole(role)))
+
+          case Vector(AsInt(_), CharacterClass(_)) =>
+            Left(errorMessage(missingRole))
+          case Vector(AsInt(_), CharacterRole(_)) =>
+            Left(errorMessage(missingClass))
+          case Vector(AsInt(_), cls) =>
+            Left(errorMessage(invalidClass(cls), missingRole))
+          case Vector(CharacterClass(_), CharacterRole(_)) =>
+            Left(errorMessage(missingEventId))
+          case Vector(eventId, CharacterClass(_)) =>
+            Left(errorMessage(invalidEventId(eventId), missingRole))
+          case Vector(eventId, CharacterRole(_)) =>
+            Left(errorMessage(invalidEventId(eventId), missingClass))
+          case Vector(eventId, cls) =>
+            Left(errorMessage(invalidEventId(eventId), invalidClass(cls), missingRole))
+
+          case Vector(AsInt(_)) =>
+            Left(errorMessage(missingClass, missingRole))
+          case Vector(CharacterClass(_)) =>
+            Left(errorMessage(missingEventId, missingRole))
+          case Vector(CharacterRole(_)) =>
+            Left(errorMessage(missingEventId, missingClass))
+          case Vector(eventId) =>
+            Left(errorMessage(invalidEventId(eventId), missingClass, missingRole))
+
+          case _ =>
+            Left(errorMessage(missingEventId, missingClass, missingRole))
+
+        }
+    }
+
+    /**
+     * The !signoff command.
+     */
+    object Signoff extends Command("signoff") {
+      override def parse(metadata: Message.Metadata, args: Vector[String]): Either[String, Message] =
+        args.headOption match {
+          case Some(AsInt(eventId)) => Right(Message.Signoff(metadata, eventId))
+          case Some(eventId) => Left(errorMessage(invalidEventId(eventId)))
+          case None => Left(errorMessage(missingEventId))
+        }
+    }
+
+    /**
+     * The !help command.
+     */
+    object Help extends Command("help", "commands") {
+      override def parse(metadata: Message.Metadata, args: Vector[String]): Either[String, Message] =
+        Right(Message.Help(metadata))
+    }
+
+    /**
+     * A utility for extracting integer parameters.
+     */
+    private object AsInt {
+
+      /** Extracts an integer parameter. */
+      def unapply(arg: String): Option[Int] =
+        Try(arg.toInt).toOption
+
+    }
+
   }
 
 }
