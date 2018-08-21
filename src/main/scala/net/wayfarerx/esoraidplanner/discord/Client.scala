@@ -61,42 +61,31 @@ final class Client private(
    * @param message The message to send.
    * @return The result of attempting to send a message to ESO raid planner.
    */
-  def send(message: Message): IO[String] = message match {
-    case Message.Setup(userHandle, userId, serverId, channelId, guildId) =>
-      post(setup, UrlForm.fromSeq(Vector(
-        "discord_handle" -> userHandle,
-        "discord_user_id" -> userId.toString,
-        "discord_server_id" -> serverId.toString,
-        "discord_channel_id" -> channelId.toString)
-        ++ guildId.map(id => "guild_id" -> id.toString).toVector))
-    case Message.Events(userHandle, userId, serverId, channelId) =>
-      post(events, UrlForm(
-        "discord_handle" -> userHandle,
-        "discord_user_id" -> userId.toString,
-        "discord_server_id" -> serverId.toString,
-        "discord_channel_id" -> channelId.toString))
-    case Message.Signup(userHandle, userId, serverId, channelId, eventId, characterClass, characterRole) =>
-      post(signup, UrlForm(
-        "discord_handle" -> userHandle,
-        "discord_user_id" -> userId.toString,
-        "discord_server_id" -> serverId.toString,
-        "discord_channel_id" -> channelId.toString,
-        "event_id" -> eventId.toString,
-        "class" -> classId(characterClass).toString,
-        "role" -> roleId(characterRole).toString))
-    case Message.Signoff(userHandle, userId, serverId, channelId, eventId) =>
-      post(signoff, UrlForm(
-        "discord_handle" -> userHandle,
-        "discord_user_id" -> userId.toString,
-        "discord_server_id" -> serverId.toString,
-        "discord_channel_id" -> channelId.toString,
-        "event_id" -> eventId.toString))
-    case Message.Help(userHandle, userId, serverId, channelId) =>
-      post(help, UrlForm(
-        "discord_handle" -> userHandle,
-        "discord_user_id" -> userId.toString,
-        "discord_server_id" -> serverId.toString,
-        "discord_channel_id" -> channelId.toString))
+  def send(message: Message): IO[String] = {
+
+    def render(metadata: Message.Metadata): Vector[(String, String)] = Vector(
+      "discord_handle" -> metadata.userHandle,
+      "discord_user_id" -> metadata.userId.toString,
+      "discord_channel_id" -> metadata.channelId.toString,
+      "discord_server_id" -> metadata.serverId.toString
+    )
+
+    message match {
+      case Message.Setup(metadata, guildId) =>
+        post(setup, UrlForm.fromSeq(render(metadata) ++ guildId.map(id => "guild_id" -> id.toString).toVector))
+      case Message.Events(metadata) =>
+        post(events, UrlForm.fromSeq(render(metadata)))
+      case Message.Signup(metadata, eventId, characterClass, characterRole) =>
+        post(signup, UrlForm.fromSeq(render(metadata) ++ Vector(
+          "event_id" -> eventId.toString,
+          "class" -> classId(characterClass).toString,
+          "role" -> roleId(characterRole).toString)
+        ))
+      case Message.Signoff(metadata, eventId) =>
+        post(signoff, UrlForm.fromSeq(render(metadata) :+ ("event_id" -> eventId.toString)))
+      case Message.Help(metadata) =>
+        post(help, UrlForm.fromSeq(render(metadata)))
+    }
   }
 
   /**
