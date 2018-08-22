@@ -88,7 +88,7 @@ final class Bot private(discord: IDiscordClient, lookback: FiniteDuration, clien
           message.getGuild.getLongID
         ), tokens.tail) match {
           case Left(errorMessage) =>
-            request(message.reply(errorMessage))
+            if (recovering) IO.pure(()) else request(message.reply(errorMessage))
           case Right(msg) =>
             client.send(msg).flatMap(r => if (r.nonEmpty) request(message.getChannel.sendMessage(r)) else IO.pure(()))
         }) map (_ => ())
