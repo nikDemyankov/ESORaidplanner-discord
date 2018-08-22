@@ -22,6 +22,7 @@ package main
 
 import java.net.URL
 
+import concurrent.duration._
 import language.existentials
 import util.{Failure, Success, Try}
 
@@ -78,7 +79,7 @@ object Program extends IOApp {
         serverConfig <- Servers.configure(settings)
         clientUrl <- IO(new URL(config.clientUrl))
         result <- Client(clientConfig, config.clientToken, clientUrl).bracket { client =>
-          Bot(botConfig.withToken(config.botToken), client).bracket { bot =>
+          Bot(botConfig.withToken(config.botToken), config.botLookback, client).bracket { bot =>
             Server(serverConfig, config.serverAddress, config.serverPort, bot) flatMap (_.run())
           }(_.dispose())
         }(_.dispose())
@@ -170,6 +171,7 @@ object Program extends IOApp {
   private case class Configuration(
     botToken: String,
     clientToken: String,
+    botLookback: FiniteDuration = 6.hours,
     clientUrl: String = "https://esoraidplanner.com/",
     serverAddress: String = "localhost",
     serverPort: Int = 7224,
@@ -195,6 +197,10 @@ object Program extends IOApp {
       Setting.option[Config]("client-token", Some('c'),
         "The authorization token for connecting to ESO Raidplanner.", required = true)(
         (config, value) => Some(config.copy(clientToken = value))),
+
+      Setting.option[Config]("bot-lookback", 'l',
+        "The maximum length of time to look back in message histories.")(
+        Setting.FiniteDurations((config, value) => Some(config.copy(botLookback = value)))),
 
       Setting.option[Config]("client-url", 'u',
         "The base URL to use for all client operations.")(
