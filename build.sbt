@@ -12,6 +12,9 @@ lazy val root = (project in file(".")).settings(
   assemblyJarName in assembly := "esoraidplanner-discord.jar",
   libraryDependencies ++= Seq(
     Discord4j,
+    CirceCore,
+    CirceGeneric,
+    CirceParser,
     Http4sCirce,
     Http4sDsl,
     Http4sBlazeClient,
