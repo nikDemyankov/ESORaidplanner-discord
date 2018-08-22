@@ -24,14 +24,12 @@ import java.time.Instant
 import collection.JavaConverters._
 import concurrent.duration._
 import util.Try
-
 import cats.effect.IO
-
 import org.log4s._
-
 import sx.blah.discord.api.events.IListener
 import sx.blah.discord.api.{ClientBuilder, IDiscordClient}
-import sx.blah.discord.handle.impl.events.guild.channel.message.MessageEvent
+import sx.blah.discord.handle.impl.events.ReadyEvent
+import sx.blah.discord.handle.impl.events.guild.channel.message.MessageReceivedEvent
 import sx.blah.discord.handle.impl.events.shard.LoginEvent
 import sx.blah.discord.handle.obj.{IChannel, IMessage}
 import sx.blah.discord.util.RequestBuffer
@@ -39,34 +37,48 @@ import sx.blah.discord.util.RequestBuffer
 /**
  * The Discord bot that sends and receives messages.
  *
- * @param discord The Discord client.
+ * @param discord  The Discord client.
  * @param lookback The maximum length of time to look back in message histories.
- * @param client  The ESO raid planner client.
+ * @param client   The ESO raid planner client.
  */
 final class Bot private(discord: IDiscordClient, lookback: FiniteDuration, client: Client) {
 
   import Bot._
 
+  /** The logger to use. */
   private val logger = getLogger
 
+  /** True if this bot has received a ready event. */
+  @volatile
+  private var ready = false
+
   /** The message event handler. */
-  private val OnMessage: IListener[MessageEvent] =
-    (event: MessageEvent) => received(event.getMessage).unsafeRunSync()
+  private val OnMessage: IListener[MessageReceivedEvent] =
+    (event: MessageReceivedEvent) => received(event.getMessage, recovering = false).unsafeRunSync()
 
   /** The login event handler. */
   private val OnLogin: IListener[LoginEvent] =
-    (_: LoginEvent) => login().unsafeRunSync()
+    (_: LoginEvent) => if (ready) login().unsafeRunSync()
+
+  /** The login event handler. */
+  private val OnReady: IListener[ReadyEvent] =
+    (_: ReadyEvent) => if (!ready) {
+      ready = true
+      login().unsafeRunSync()
+    }
 
   /**
    * Handles receiving a message event.
    *
-   * @param message The message to receive.
+   * @param message    The message to receive.
+   * @param recovering True if this is an old message.
    * @return The result of the attempt to handle the event.
    */
-  private def received(message: IMessage): IO[Unit] =
-    if (message.getAuthor == discord.getOurUser || !message.getContent.trim.startsWith("!")) {
+  private def received(message: IMessage, recovering: Boolean): IO[Unit] = {
+    val me = discord.getOurUser
+    if (message.getAuthor.getLongID == me.getLongID)
       IO.pure(())
-    } else {
+    else if (message.getContent.trim.startsWith("!")) {
       val tokens = message.getContent.split("""\s+""").iterator.filterNot(_.isEmpty).toVector
       Commands get tokens.head.substring(1).toLowerCase map { cmd =>
         (cmd.parse(Message.Metadata(
@@ -81,7 +93,11 @@ final class Bot private(discord: IDiscordClient, lookback: FiniteDuration, clien
             client.send(msg).flatMap(r => if (r.nonEmpty) request(message.getChannel.sendMessage(r)) else IO.pure(()))
         }) map (_ => ())
       } getOrElse IO.pure(())
-    }
+    } else if (!recovering && message.getMentions.asScala.exists(_.getLongID == me.getLongID)) {
+      Fortunes() flatMap (f => request(message.getChannel.sendMessage(f))) map (_ => ())
+    } else
+      IO.pure(())
+  }
 
   /** Handles receiving a login event. */
   def login(): IO[Unit] = {
@@ -113,7 +129,7 @@ final class Bot private(discord: IDiscordClient, lookback: FiniteDuration, clien
 
     def handleMessages(remaining: Vector[IMessage]): IO[Unit] = remaining match {
       case message +: next =>
-        received(message) flatMap (_ => handleMessages(next))
+        received(message, recovering = true) flatMap (_ => handleMessages(next))
       case _ =>
         IO.pure(())
     }
@@ -159,7 +175,9 @@ final class Bot private(discord: IDiscordClient, lookback: FiniteDuration, clien
    * @param action The action that performs the request.
    * @return The result of attempting the request.
    */
-  private def request[T](action: => T): IO[T] =
+  private def request[T](action: => T): IO[T]
+
+  =
     IO(RequestBuffer.request(() => action).get())
 
   /** Shuts down this Discord Bot. */
@@ -185,15 +203,16 @@ object Bot {
    * @param client   The HTTP client that connects to the ESO raid planner service.
    * @return The result of attempting to create a new Discord bot.
    */
-  def apply(builder: ClientBuilder, lookback: FiniteDuration, client: Client): IO[Bot] = IO {
-    val discord = builder.build()
-    val bot = new Bot(discord, lookback, client)
-    val dispatcher = discord.getDispatcher
-    dispatcher.registerListener(bot.OnMessage)
-    dispatcher.registerListener(bot.OnLogin)
-    discord.login()
-    bot
-  }
+  def apply(builder: ClientBuilder, lookback: FiniteDuration, client: Client): IO[Bot] =
+    for (discord <- IO(builder.build())) yield {
+      val bot = new Bot(discord, lookback, client)
+      val dispatcher = discord.getDispatcher
+      dispatcher.registerListener(bot.OnMessage)
+      dispatcher.registerListener(bot.OnLogin)
+      dispatcher.registerListener(bot.OnReady)
+      discord.login()
+      bot
+    }
 
   /**
    * Base type for command parsers.
