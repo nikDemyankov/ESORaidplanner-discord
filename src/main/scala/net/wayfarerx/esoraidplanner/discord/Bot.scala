@@ -31,8 +31,8 @@ import org.log4s._
 
 import sx.blah.discord.api.events.IListener
 import sx.blah.discord.api.{ClientBuilder, IDiscordClient}
-import sx.blah.discord.handle.impl.events.ReadyEvent
 import sx.blah.discord.handle.impl.events.guild.channel.message.MessageEvent
+import sx.blah.discord.handle.impl.events.shard.LoginEvent
 import sx.blah.discord.handle.obj.{IChannel, IMessage}
 import sx.blah.discord.util.RequestBuffer
 
@@ -47,57 +47,47 @@ final class Bot private(discord: IDiscordClient, lookback: FiniteDuration, clien
 
   import Bot._
 
-  /** The logger to use. */
   private val logger = getLogger
 
   /** The message event handler. */
   private val OnMessage: IListener[MessageEvent] =
-    (event: MessageEvent) => received(event).unsafeRunSync()
+    (event: MessageEvent) => received(event.getMessage).unsafeRunSync()
+
+  /** The login event handler. */
+  private val OnLogin: IListener[LoginEvent] =
+    (_: LoginEvent) => login().unsafeRunSync()
 
   /**
    * Handles receiving a message event.
    *
-   * @param event The message event.
+   * @param message The message to receive.
    * @return The result of the attempt to handle the event.
    */
-  private def received(event: MessageEvent): IO[Unit] =
-    if (event.getMessage.getAuthor == discord.getOurUser || !event.getMessage.getContent.trim.startsWith("!")) {
+  private def received(message: IMessage): IO[Unit] =
+    if (message.getAuthor == discord.getOurUser || !message.getContent.trim.startsWith("!")) {
       IO.pure(())
     } else {
-      val tokens = event.getMessage.getContent.split("""\s+""").iterator.filterNot(_.isEmpty).toVector
+      val tokens = message.getContent.split("""\s+""").iterator.filterNot(_.isEmpty).toVector
       Commands get tokens.head.substring(1).toLowerCase map { cmd =>
         (cmd.parse(Message.Metadata(
-          s"${event.getAuthor.getName}#${event.getAuthor.getDiscriminator}",
-          event.getAuthor.getLongID,
-          event.getChannel.getLongID,
-          event.getGuild.getLongID
+          s"${message.getAuthor.getName}#${message.getAuthor.getDiscriminator}",
+          message.getAuthor.getLongID,
+          message.getChannel.getLongID,
+          message.getGuild.getLongID
         ), tokens.tail) match {
           case Left(errorMessage) =>
-            request(event.getMessage.reply(errorMessage))
-          case Right(message) =>
-            client.send(message).flatMap(r => if (r.nonEmpty) request(event.getChannel.sendMessage(r)) else IO.pure(()))
+            request(message.reply(errorMessage))
+          case Right(msg) =>
+            client.send(msg).flatMap(r => if (r.nonEmpty) request(message.getChannel.sendMessage(r)) else IO.pure(()))
         }) map (_ => ())
       } getOrElse IO.pure(())
     }
 
-  /**
-   * Attempts to return the channels in the specified server.
-   *
-   * @param serverId The ID of the server to list the channels of.
-   * @return The result of attempting to return the channels in the specified server.
-   */
-  def channels(serverId: Long): IO[Vector[(Long, String)]] =
-    request(discord.getGuildByID(serverId)) map (Option(_)) flatMap {
-      case Some(guild) => request(guild.getChannels).map(_.iterator.asScala.map(c => c.getLongID -> c.getName).toVector)
-      case None => IO.raiseError(new IllegalArgumentException(s"Unknown server ID: $serverId"))
-    }
-
-  /** Handles receiving a ready event. */
-  def ready(): IO[Unit] = {
+  /** Handles receiving a login event. */
+  def login(): IO[Unit] = {
 
     def inspectGuilds(remaining: Vector[GuildInfo]): IO[Unit] = remaining match {
       case info +: next =>
-        println(s"guild:  ${info.id}")
         request(discord.getGuildByID(info.discordId)) map (Option(_)) flatMap {
           case Some(guild) =>
             request(guild.getChannels.asScala.toVector) flatMap (inspectChannels(info, _))
@@ -110,13 +100,12 @@ final class Bot private(discord: IDiscordClient, lookback: FiniteDuration, clien
 
     def inspectChannels(info: GuildInfo, remaining: Vector[IChannel]): IO[Unit] = remaining match {
       case channel +: next =>
-        println(s"channel: ${channel.getLongID}")
         val since = implicitly[Ordering[Instant]].max(
           info.discordLastActivity,
           Instant.ofEpochMilli((Deadline.now - lookback).time.toMillis)
         )
-        request(channel.getMessageHistoryFrom(since)) flatMap { history =>
-          handleMessages(history.iterator().asScala.toVector)
+        request(channel.getMessageHistoryTo(since)) flatMap { history =>
+          handleMessages(history.iterator.asScala.filterNot(_.getAuthor == discord.getOurUser).toVector)
         } flatMap (_ => inspectChannels(info, next))
       case _ =>
         IO.pure(())
@@ -124,7 +113,6 @@ final class Bot private(discord: IDiscordClient, lookback: FiniteDuration, clien
 
     def handleMessages(remaining: Vector[IMessage]): IO[Unit] = remaining match {
       case message +: next =>
-        println(s"msg:    ${message.getLongID}")
         received(message) flatMap (_ => handleMessages(next))
       case _ =>
         IO.pure(())
@@ -139,6 +127,18 @@ final class Bot private(discord: IDiscordClient, lookback: FiniteDuration, clien
       result <- inspectGuilds(guilds)
     } yield result
   }
+
+  /**
+   * Attempts to return the channels in the specified server.
+   *
+   * @param serverId The ID of the server to list the channels of.
+   * @return The result of attempting to return the channels in the specified server.
+   */
+  def channels(serverId: Long): IO[Vector[(Long, String)]] =
+    request(discord.getGuildByID(serverId)) map (Option(_)) flatMap {
+      case Some(guild) => request(guild.getChannels).map(_.iterator.asScala.map(c => c.getLongID -> c.getName).toVector)
+      case None => IO.raiseError(new IllegalArgumentException(s"Unknown server ID: $serverId"))
+    }
 
   /**
    * Attempts to send a push notification to a channel.
@@ -190,7 +190,7 @@ object Bot {
     val bot = new Bot(discord, lookback, client)
     val dispatcher = discord.getDispatcher
     dispatcher.registerListener(bot.OnMessage)
-    dispatcher.registerListener(bot.OnReady)
+    dispatcher.registerListener(bot.OnLogin)
     discord.login()
     bot
   }

@@ -21,10 +21,9 @@ package net.wayfarerx.esoraidplanner.discord
 
 import java.text.SimpleDateFormat
 import java.time.Instant
-import java.util.Date
+import java.util.{Date, TimeZone}
 
 import cats.syntax.either._
-
 import io.circe._
 import io.circe.parser._
 
@@ -64,7 +63,11 @@ object GuildInfo {
     Decoder.forProduct3("id", "discord_id", "discord_last_activity")(GuildInfo.apply)
 
   /** The date format to use. */
-  private def dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+  private def dateFormat = {
+    val sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+    sdf.getCalendar.setTimeZone(TimeZone.getTimeZone("UTC"))
+    sdf
+  }
 
   /**
    * Attempts to decode a sequence of guild metadata objects from a raw JSON string.

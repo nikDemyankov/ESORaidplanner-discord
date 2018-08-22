@@ -88,6 +88,8 @@ final class Client private(
         post(signoff, UrlForm.fromSeq(render(metadata) :+ ("event_id" -> eventId.toString)))
       case Message.Help(metadata) =>
         post(help, UrlForm.fromSeq(render(metadata)))
+      case Message.LastActivity =>
+        post(lastActivity, UrlForm())
     }
   }
 
