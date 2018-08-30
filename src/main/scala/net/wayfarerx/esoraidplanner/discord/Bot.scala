@@ -120,9 +120,9 @@ final class Bot private(discord: IDiscordClient, lookback: FiniteDuration, clien
           info.discordLastActivity,
           Instant.ofEpochMilli((Deadline.now - lookback).time.toMillis)
         )
-        request(channel.getMessageHistoryTo(since)) flatMap { history =>
+        request(channel.getMessageHistoryTo(since)).flatMap { history =>
           handleMessages(history.iterator.asScala.filterNot(_.getAuthor == discord.getOurUser).toVector)
-        } flatMap (_ => inspectChannels(info, next))
+        }.flatMap (_ => inspectChannels(info, next)).redeem(_.printStackTrace(), _ => ())
       case _ =>
         IO.pure(())
     }
@@ -175,9 +175,7 @@ final class Bot private(discord: IDiscordClient, lookback: FiniteDuration, clien
    * @param action The action that performs the request.
    * @return The result of attempting the request.
    */
-  private def request[T](action: => T): IO[T]
-
-  =
+  private def request[T](action: => T): IO[T] =
     IO(RequestBuffer.request(() => action).get())
 
   /** Shuts down this Discord Bot. */
