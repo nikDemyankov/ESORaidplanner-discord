@@ -122,7 +122,7 @@ final class Bot private(discord: IDiscordClient, lookback: FiniteDuration, clien
         )
         request(channel.getMessageHistoryTo(since)).flatMap { history =>
           handleMessages(history.iterator.asScala.filterNot(_.getAuthor == discord.getOurUser).toVector)
-        }.flatMap (_ => inspectChannels(info, next)).redeem(_.printStackTrace(), _ => ())
+        }.flatMap (_ => inspectChannels(info, next)).redeem(_ => (), _ => ())
       case _ =>
         IO.pure(())
     }
