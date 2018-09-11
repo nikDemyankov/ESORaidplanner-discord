@@ -93,7 +93,9 @@ final class Bot private(discord: IDiscordClient, lookback: FiniteDuration, clien
             client.send(msg).flatMap(r => if (r.nonEmpty) request(message.getChannel.sendMessage(r)) else IO.pure(()))
         }) map (_ => ())
       } getOrElse IO.pure(())
-    } else if (!recovering && message.getMentions.asScala.exists(_.getLongID == me.getLongID)) {
+    } else if (!recovering &&
+      message.getMentions.size == 1 &&
+      message.getMentions.asScala.exists(_.getLongID == me.getLongID)) {
       Fortunes() flatMap (f => request(message.getChannel.sendMessage(f))) map (_ => ())
     } else
       IO.pure(())

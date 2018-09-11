@@ -101,12 +101,6 @@ object Message {
 
   /**
    * Represents a user setting up a guild.
-   *
-   * @param userHandle The Discord handle of the user.
-   * @param userId The Discord ID of the user.
-   * @param serverId The Discord ID of the server.
-   * @param channelId The Discord ID of the channel.
-   * @param guildId The ID of the guild.
    */
   case object LastActivity extends Message
 
