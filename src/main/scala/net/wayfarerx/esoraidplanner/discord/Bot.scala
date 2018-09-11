@@ -192,8 +192,14 @@ final class Bot private(discord: IDiscordClient, lookback: FiniteDuration, clien
 object Bot {
 
   /** The map of all commands by their names. */
-  private val Commands = Seq(Command.Setup, Command.Events, Command.Signup, Command.Signoff, Command.Help)
-    .flatMap(c => c.names map (_ -> c)).toMap
+  private val Commands = Seq(
+    Command.Setup,
+    Command.Events,
+    Command.Signup,
+    Command.Signoff,
+    Command.Status,
+    Command.Help
+  ).flatMap(c => c.names map (_ -> c)).toMap
 
   /**
    * Attempts to create a new Discord bot.
@@ -356,6 +362,18 @@ object Bot {
       override def parse(metadata: Message.Metadata, args: Vector[String]): Either[String, Message] =
         args.headOption match {
           case Some(AsInt(eventId)) => Right(Message.Signoff(metadata, eventId))
+          case Some(eventId) => Left(errorMessage(invalidEventId(eventId)))
+          case None => Left(errorMessage(missingEventId))
+        }
+    }
+
+    /**
+     * The !status command.
+     */
+    object Status extends Command("status") {
+      override def parse(metadata: Message.Metadata, args: Vector[String]): Either[String, Message] =
+        args.headOption match {
+          case Some(AsInt(eventId)) => Right(Message.Status(metadata, eventId))
           case Some(eventId) => Left(errorMessage(invalidEventId(eventId)))
           case None => Left(errorMessage(missingEventId))
         }
