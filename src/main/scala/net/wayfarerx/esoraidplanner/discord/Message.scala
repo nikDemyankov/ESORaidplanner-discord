@@ -54,14 +54,12 @@ object Message {
    *
    * @param metadata The metadata associated with this message.
    * @param eventId The ID of the event.
-   * @param characterClass The user's character class.
-   * @param characterRole The user's character role.
+   * @param character Either the user's character class & role or the name of a preset.
    */
   case class Signup(
     metadata: Metadata,
     eventId: Int,
-    characterClass: CharacterClass,
-    characterRole: CharacterRole
+    character: Either[(CharacterClass, CharacterRole), CharacterPreset]
   ) extends Message
 
   /**
