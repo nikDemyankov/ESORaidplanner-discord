@@ -76,6 +76,17 @@ object Message {
   ) extends Message
 
   /**
+   * Represents a request to list the current state of an event.
+   *
+   * @param metadata The metadata associated with this message.
+   * @param eventId The ID of the event.
+   */
+  case class Signups(
+    metadata: Metadata,
+    eventId: Int
+  ) extends Message
+
+  /**
    * Represents a request to show the help message.
    *
    * @param metadata The metadata associated with this message.

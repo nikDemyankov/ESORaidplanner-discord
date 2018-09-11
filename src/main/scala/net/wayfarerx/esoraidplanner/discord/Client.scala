@@ -42,6 +42,7 @@ import org.http4s.client.blaze.{BlazeClientConfig, Http1Client}
  * @param events    The URI for the events operation.
  * @param signup    The URI for the signup operation.
  * @param signoff   The URI for the signoff operation.
+ * @param signups   The URI for the signups operation.
  * @param help   The URI for the help operation.
  * @param lastActivity   The URI for the last activity operation.
  */
@@ -52,6 +53,7 @@ final class Client private(
   events: Uri,
   signup: Uri,
   signoff: Uri,
+  signups: Uri,
   help: Uri,
   lastActivity: Uri
 ) {
@@ -86,6 +88,8 @@ final class Client private(
         ))
       case Message.Signoff(metadata, eventId) =>
         post(signoff, UrlForm.fromSeq(render(metadata) :+ ("event_id" -> eventId.toString)))
+      case Message.Signups(metadata, eventId) =>
+        post(signups, UrlForm.fromSeq(render(metadata) :+ ("event_id" -> eventId.toString)))
       case Message.Help(metadata) =>
         post(help, UrlForm.fromSeq(render(metadata)))
       case Message.LastActivity =>
@@ -162,10 +166,11 @@ object Client {
       events <- resolve("/api/discord/events")
       signup <- resolve("/api/discord/signup")
       signoff <- resolve("/api/discord/signoff")
+      signups <- resolve("/api/discord/signups")
       help <- resolve("/api/discord/help")
       lastActivity <- resolve("/api/discord/last-activity")
       httpClient <- Http1Client[IO](config)
-    } yield new Client(httpClient, authToken, setup, events, signup, signoff, help, lastActivity)
+    } yield new Client(httpClient, authToken, setup, events, signup, signoff, signups, help, lastActivity)
   }
 
   /** A signal that an HTTP request was not successful. */

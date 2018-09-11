@@ -362,6 +362,18 @@ object Bot {
     }
 
     /**
+     * The !signups command.
+     */
+    object Signups extends Command("signups", "roster") {
+      override def parse(metadata: Message.Metadata, args: Vector[String]): Either[String, Message] =
+        args.headOption match {
+          case Some(AsInt(eventId)) => Right(Message.Signups(metadata, eventId))
+          case Some(eventId) => Left(errorMessage(invalidEventId(eventId)))
+          case None => Left(errorMessage(missingEventId))
+        }
+    }
+
+    /**
      * The !help command.
      */
     object Help extends Command("help", "commands") {
