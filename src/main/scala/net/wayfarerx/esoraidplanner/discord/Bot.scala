@@ -31,7 +31,7 @@ import sx.blah.discord.api.{ClientBuilder, IDiscordClient}
 import sx.blah.discord.handle.impl.events.ReadyEvent
 import sx.blah.discord.handle.impl.events.guild.channel.message.MessageReceivedEvent
 import sx.blah.discord.handle.impl.events.shard.LoginEvent
-import sx.blah.discord.handle.obj.{IChannel, IMessage}
+import sx.blah.discord.handle.obj.{ActivityType, IChannel, IMessage, StatusType}
 import sx.blah.discord.util.RequestBuffer
 
 /**
@@ -64,7 +64,7 @@ final class Bot private(discord: IDiscordClient, lookback: FiniteDuration, clien
   private val OnReady: IListener[ReadyEvent] =
     (_: ReadyEvent) => if (!ready) {
       ready = true
-      login().unsafeRunSync()
+      setStatus().flatMap(_ => login()).unsafeRunSync()
     }
 
   /**
@@ -99,6 +99,11 @@ final class Bot private(discord: IDiscordClient, lookback: FiniteDuration, clien
       Fortunes() flatMap (f => request(message.getChannel.sendMessage(f))) map (_ => ())
     } else
       IO.pure(())
+  }
+
+  /** Handles receiving a login event. */
+  def setStatus(): IO[Unit] = {
+    request(discord.changePresence(StatusType.ONLINE, ActivityType.PLAYING, "esoraidplanner.com"))
   }
 
   /** Handles receiving a login event. */
