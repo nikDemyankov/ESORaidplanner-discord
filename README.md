@@ -30,6 +30,7 @@ Usage: java -jar esoraidplanner-discord.jar <setting ...>
 -q | --quiet                   Decreases the amount of logging.
 -v | --verbose                 Increases the amount of logging.
 -h | --help                    Shows this message and exits.
+
 ```
 
 ### Discord Bot Settings
