@@ -456,8 +456,12 @@ object Bot {
      * The !help command.
      */
     object Help extends Command("help", "commands") {
+
+      override def embedReply: Boolean = true
+
       override def parse(metadata: Message.Metadata, args: Vector[String]): Either[String, Message] =
         Right(Message.Help(metadata))
+
     }
 
     /**
