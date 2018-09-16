@@ -32,7 +32,7 @@ import sx.blah.discord.handle.impl.events.ReadyEvent
 import sx.blah.discord.handle.impl.events.guild.channel.message.MessageReceivedEvent
 import sx.blah.discord.handle.impl.events.shard.LoginEvent
 import sx.blah.discord.handle.obj.{IChannel, IMessage}
-import sx.blah.discord.util.RequestBuffer
+import sx.blah.discord.util.{EmbedBuilder, RequestBuffer}
 
 /**
  * The Discord bot that sends and receives messages.
@@ -90,7 +90,33 @@ final class Bot private(discord: IDiscordClient, lookback: FiniteDuration, clien
           case Left(errorMessage) =>
             if (recovering) IO.pure(()) else request(message.reply(errorMessage))
           case Right(msg) =>
-            client.send(msg).flatMap(r => if (r.nonEmpty) request(message.getChannel.sendMessage(r)) else IO.pure(()))
+            client.send(msg).flatMap(r => if (r.nonEmpty) {
+              if (cmd.embedReply) {
+                Embed(r) match {
+                  case Right(embed) =>
+                    val embeds = embed.embeds map { embedded =>
+                      val builder = new EmbedBuilder()
+                        .withTitle(embedded.title)
+                        .withDescription(embedded.description)
+                        .withUrl(embedded.url)
+                        .withColor(embedded.color)
+                        .withAuthorName(embedded.author.name)
+                        .withAuthorIcon(embedded.author.icon_url)
+                        .withFooterText(embedded.footer.text)
+                        .withFooterIcon(embedded.footer.icon_url)
+                      embedded.fields foreach { field =>
+                        builder.appendField(field.name, field.value, field.inline)
+                      }
+                      builder.build()
+                    }
+                    (IO.unit /: embeds) { (previous, next) =>
+                      previous flatMap (_ => request(message.getChannel.sendMessage(next)) map (_ => ()))
+                    }
+                  case Left(m) =>
+                    IO(println(m)) flatMap (_ => request(message.getChannel.sendMessage(r)))
+                }
+              } else request(message.getChannel.sendMessage(r))
+            } else IO.pure(()))
         }) map (_ => ())
       } getOrElse IO.pure(())
     } else if (!recovering &&
@@ -124,7 +150,7 @@ final class Bot private(discord: IDiscordClient, lookback: FiniteDuration, clien
         )
         request(channel.getMessageHistoryTo(since)).flatMap { history =>
           handleMessages(history.iterator.asScala.filterNot(_.getAuthor == discord.getOurUser).toVector)
-        }.flatMap (_ => inspectChannels(info, next)).redeem(_ => (), _ => ())
+        }.flatMap(_ => inspectChannels(info, next)).redeem(_ => (), _ => ())
       case _ =>
         IO.pure(())
     }
@@ -192,7 +218,7 @@ final class Bot private(discord: IDiscordClient, lookback: FiniteDuration, clien
 object Bot {
 
   /** The map of all commands by their names. */
-  private val Commands = Seq(Command.Setup, Command.Events, Command.Signup, Command.Signoff, Command.Help)
+  private val Commands = Seq(Command.Setup, Command.Events, Command.Signup, Command.Signoff, Command.Signups, Command.Help)
     .flatMap(c => c.names map (_ -> c)).toMap
 
   /**
@@ -218,6 +244,9 @@ object Bot {
    * Base type for command parsers.
    */
   sealed abstract class Command(val names: String*) {
+
+    /** True if replies to this command use embeds. */
+    def embedReply: Boolean = false
 
     /**
      * Attempts to parse a command from the specified arguments.
@@ -365,12 +394,16 @@ object Bot {
      * The !signups command.
      */
     object Signups extends Command("signups", "roster") {
+
+      override def embedReply: Boolean = true
+
       override def parse(metadata: Message.Metadata, args: Vector[String]): Either[String, Message] =
         args.headOption match {
           case Some(AsInt(eventId)) => Right(Message.Signups(metadata, eventId))
           case Some(eventId) => Left(errorMessage(invalidEventId(eventId)))
           case None => Left(errorMessage(missingEventId))
         }
+
     }
 
     /**
