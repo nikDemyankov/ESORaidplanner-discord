@@ -313,10 +313,10 @@ object Bot {
       override def parse(metadata: Message.Metadata, args: Vector[String]): Either[String, Message] = args match {
 
         // Valid arguments.
+        case AsInt(eventId) +: CharacterPreset(preset) =>
+          Right(Message.Signup(metadata, eventId, Right(preset)))
         case AsInt(eventId) +: CharacterClass(cls) +: CharacterRole(role) +: _ =>
           Right(Message.Signup(metadata, eventId, Left(cls -> role)))
-        case AsInt(eventId) +: CharacterPreset(preset) +: _ =>
-          Right(Message.Signup(metadata, eventId, Right(preset)))
 
         // Invalid: no arguments.
         case Vector() =>
@@ -325,7 +325,7 @@ object Bot {
         // Invalid: one argument.
         case Vector(AsInt(_)) =>
           Left(errorMessage(missingCharacter))
-        case Vector(CharacterPreset(_)) =>
+        case CharacterPreset(_) =>
           Left(errorMessage(missingEventId))
         case Vector(CharacterClass(_)) =>
           Left(errorMessage(missingEventId, missingRole))
@@ -341,7 +341,7 @@ object Bot {
           Left(errorMessage(missingClass))
         case Vector(AsInt(_), preset) =>
           Left(errorMessage(invalidPreset(preset)))
-        case Vector(eventId, CharacterPreset(_)) =>
+        case eventId +: CharacterPreset(_) =>
           Left(errorMessage(invalidEventId(eventId)))
         case Vector(eventId, CharacterClass(_)) =>
           Left(errorMessage(invalidEventId(eventId), missingRole))
@@ -363,7 +363,7 @@ object Bot {
           Left(errorMessage(invalidEventId(eventId), invalidClass(cls)))
         case eventId +: CharacterClass(_) +: role +: _ =>
           Left(errorMessage(invalidEventId(eventId), invalidRole(role)))
-        case eventId +: CharacterPreset(_) +: _ =>
+        case eventId +: CharacterPreset(_) =>
           Left(errorMessage(invalidEventId(eventId)))
         case eventId +: cls +: role +: _ =>
           Left(errorMessage(invalidEventId(eventId), invalidClass(cls), invalidRole(role)))
