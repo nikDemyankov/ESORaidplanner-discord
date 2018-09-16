@@ -34,11 +34,11 @@ object CharacterPreset {
   /**
    * Attempts to extract a character preset name from a string.
    *
-   * @param string The string to match to a character preset name.
+   * @param args The args to extract a character preset name from.
    * @return The character preset if one was found.
    */
-  def unapply(string: String): Option[CharacterPreset] = {
-    val normalized = string.trim
+  def unapply(args: Vector[String]): Option[CharacterPreset] = {
+    val normalized = args.mkString(" ").trim
     if (normalized.isEmpty) None else normalized charAt 0 match {
       case quote@('`' | '\'' | '"') => normalized.indexOf(quote & 0x0000FFFF, 1) match {
         case end if end > 1 => Some(CharacterPreset(normalized.substring(1, end)))
