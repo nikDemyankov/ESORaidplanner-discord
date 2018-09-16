@@ -54,14 +54,12 @@ object Message {
    *
    * @param metadata The metadata associated with this message.
    * @param eventId The ID of the event.
-   * @param characterClass The user's character class.
-   * @param characterRole The user's character role.
+   * @param character Either the user's character class & role or the name of a preset.
    */
   case class Signup(
     metadata: Metadata,
     eventId: Int,
-    characterClass: CharacterClass,
-    characterRole: CharacterRole
+    character: Either[(CharacterClass, CharacterRole), CharacterPreset]
   ) extends Message
 
   /**
@@ -71,6 +69,28 @@ object Message {
    * @param eventId The ID of the event.
    */
   case class Signoff(
+    metadata: Metadata,
+    eventId: Int
+  ) extends Message
+
+  /**
+   * Represents a user querying their status in an event.
+   *
+   * @param metadata The metadata associated with this message.
+   * @param eventId The ID of the event.
+   */
+  case class Status(
+    metadata: Metadata,
+    eventId: Int
+  ) extends Message
+
+  /**
+   * Represents a request to list the current state of an event.
+   *
+   * @param metadata The metadata associated with this message.
+   * @param eventId The ID of the event.
+   */
+  case class Signups(
     metadata: Metadata,
     eventId: Int
   ) extends Message

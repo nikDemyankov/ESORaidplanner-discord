@@ -31,8 +31,8 @@ import sx.blah.discord.api.{ClientBuilder, IDiscordClient}
 import sx.blah.discord.handle.impl.events.ReadyEvent
 import sx.blah.discord.handle.impl.events.guild.channel.message.MessageReceivedEvent
 import sx.blah.discord.handle.impl.events.shard.LoginEvent
-import sx.blah.discord.handle.obj.{IChannel, IMessage}
-import sx.blah.discord.util.RequestBuffer
+import sx.blah.discord.handle.obj.{ActivityType, IChannel, IMessage, StatusType}
+import sx.blah.discord.util.{EmbedBuilder, RequestBuffer}
 
 /**
  * The Discord bot that sends and receives messages.
@@ -90,7 +90,33 @@ final class Bot private(discord: IDiscordClient, lookback: FiniteDuration, clien
           case Left(errorMessage) =>
             if (recovering) IO.pure(()) else request(message.reply(errorMessage))
           case Right(msg) =>
-            client.send(msg).flatMap(r => if (r.nonEmpty) request(message.getChannel.sendMessage(r)) else IO.pure(()))
+            client.send(msg).flatMap(r => if (r.nonEmpty) {
+              if (cmd.embedReply) {
+                Embed(r) match {
+                  case Right(embed) =>
+                    val embeds = embed.embeds map { embedded =>
+                      val builder = new EmbedBuilder()
+                        .withTitle(embedded.title)
+                        .withDescription(embedded.description)
+                        .withUrl(embedded.url)
+                        .withColor(embedded.color)
+                        .withAuthorName(embedded.author.name)
+                        .withAuthorIcon(embedded.author.icon_url)
+                        .withFooterText(embedded.footer.text)
+                        .withFooterIcon(embedded.footer.icon_url)
+                      embedded.fields foreach { field =>
+                        builder.appendField(field.name, field.value, field.inline)
+                      }
+                      builder.build()
+                    }
+                    (IO.unit /: embeds) { (previous, next) =>
+                      previous flatMap (_ => request(message.getChannel.sendMessage(next)) map (_ => ()))
+                    }
+                  case Left(m) =>
+                    IO(println(m)) flatMap (_ => request(message.getChannel.sendMessage(r)))
+                }
+              } else request(message.getChannel.sendMessage(r))
+            } else IO.pure(()))
         }) map (_ => ())
       } getOrElse IO.pure(())
     } else if (!recovering &&
@@ -99,6 +125,11 @@ final class Bot private(discord: IDiscordClient, lookback: FiniteDuration, clien
       Fortunes() flatMap (f => request(message.getChannel.sendMessage(f))) map (_ => ())
     } else
       IO.pure(())
+  }
+
+  /** Handles receiving a login event. */
+  def setStatus(): IO[Unit] = {
+    request(discord.changePresence(StatusType.ONLINE, ActivityType.PLAYING, "esoraidplanner.com"))
   }
 
   /** Handles receiving a login event. */
@@ -124,7 +155,7 @@ final class Bot private(discord: IDiscordClient, lookback: FiniteDuration, clien
         )
         request(channel.getMessageHistoryTo(since)).flatMap { history =>
           handleMessages(history.iterator.asScala.filterNot(_.getAuthor == discord.getOurUser).toVector)
-        }.flatMap (_ => inspectChannels(info, next)).redeem(_ => (), _ => ())
+        }.flatMap(_ => inspectChannels(info, next)).redeem(_ => (), _ => ())
       case _ =>
         IO.pure(())
     }
@@ -192,8 +223,15 @@ final class Bot private(discord: IDiscordClient, lookback: FiniteDuration, clien
 object Bot {
 
   /** The map of all commands by their names. */
-  private val Commands = Seq(Command.Setup, Command.Events, Command.Signup, Command.Signoff, Command.Help)
-    .flatMap(c => c.names map (_ -> c)).toMap
+  private val Commands = Seq(
+    Command.Setup,
+    Command.Events,
+    Command.Signup,
+    Command.Signoff,
+    Command.Status,
+    Command.Signups,
+    Command.Help
+  ).flatMap(c => c.names map (_ -> c)).toMap
 
   /**
    * Attempts to create a new Discord bot.
@@ -218,6 +256,9 @@ object Bot {
    * Base type for command parsers.
    */
   sealed abstract class Command(val names: String*) {
+
+    /** True if replies to this command use embeds. */
+    def embedReply: Boolean = false
 
     /**
      * Attempts to parse a command from the specified arguments.
@@ -246,6 +287,9 @@ object Bot {
     private def invalidEventId(eventId: String): String =
       s""""$eventId" is not a valid event ID"""
 
+    /** The missing character error message fragment. */
+    private def missingCharacter: String = "the character is not specified"
+
     /** The missing class error message fragment. */
     private def missingClass: String = "the class is missing"
 
@@ -260,6 +304,10 @@ object Bot {
     private def invalidRole(role: String): String =
       s""""$role" is not a valid role"""
 
+    /** The invalid preset error message fragment. */
+    private def invalidPreset(preset: String): String =
+      s""""$preset" is not a valid preset"""
+
     /** The usage error message fragment. */
     private def usage: String = "Type `!help` for usage instructions"
 
@@ -270,10 +318,14 @@ object Bot {
      * @return The final error message.
      */
     private def errorMessage(fragments: String*): String = fragments match {
-      case Seq(single) => s"$single. $usage."
-      case init :+ last => s"${init mkString ", "} & $last. $usage."
-      case _ => s"$usage."
+      case Seq(single) => s"${capitalize(single)}. $usage."
+      case (head +: middle) :+ last => s"${(capitalize(head) +: middle).mkString(", ")} & $last. $usage."
+      case Seq() => s"$usage."
     }
+
+    private def capitalize(string: String): String =
+      if (string.isEmpty) string
+      else string.charAt(0).toUpper +: string.tail
 
     /**
      * The !setup command.
@@ -299,54 +351,65 @@ object Bot {
      * The !signup command.
      */
     object Signup extends Command("signup") {
-      override def parse(metadata: Message.Metadata, args: Vector[String]): Either[String, Message] =
-        args take 3 match {
+      override def parse(metadata: Message.Metadata, args: Vector[String]): Either[String, Message] = args match {
 
-          case Vector(AsInt(eventId), CharacterClass(cls), CharacterRole(role)) =>
-            Right(Message.Signup(metadata, eventId, cls, role))
-          case Vector(AsInt(_), cls, CharacterRole(_)) =>
-            Left(errorMessage(invalidClass(cls)))
-          case Vector(AsInt(_), CharacterClass(_), role) =>
-            Left(errorMessage(invalidRole(role)))
-          case Vector(AsInt(_), cls, role) =>
-            Left(errorMessage(invalidClass(cls), invalidRole(role)))
-          case Vector(eventId, CharacterClass(_), CharacterRole(_)) =>
-            Left(errorMessage(invalidEventId(eventId)))
-          case Vector(eventId, cls, CharacterRole(_)) =>
-            Left(errorMessage(invalidEventId(eventId), invalidClass(cls)))
-          case Vector(eventId, CharacterClass(_), role) =>
-            Left(errorMessage(invalidEventId(eventId), invalidRole(role)))
-          case Vector(eventId, cls, role) =>
-            Left(errorMessage(invalidEventId(eventId), invalidClass(cls), invalidRole(role)))
+        // Valid arguments.
+        case AsInt(eventId) +: CharacterPreset(preset) =>
+          Right(Message.Signup(metadata, eventId, Right(preset)))
+        case AsInt(eventId) +: CharacterClass(cls) +: CharacterRole(role) +: _ =>
+          Right(Message.Signup(metadata, eventId, Left(cls -> role)))
 
-          case Vector(AsInt(_), CharacterClass(_)) =>
-            Left(errorMessage(missingRole))
-          case Vector(AsInt(_), CharacterRole(_)) =>
-            Left(errorMessage(missingClass))
-          case Vector(AsInt(_), cls) =>
-            Left(errorMessage(invalidClass(cls), missingRole))
-          case Vector(CharacterClass(_), CharacterRole(_)) =>
-            Left(errorMessage(missingEventId))
-          case Vector(eventId, CharacterClass(_)) =>
-            Left(errorMessage(invalidEventId(eventId), missingRole))
-          case Vector(eventId, CharacterRole(_)) =>
-            Left(errorMessage(invalidEventId(eventId), missingClass))
-          case Vector(eventId, cls) =>
-            Left(errorMessage(invalidEventId(eventId), invalidClass(cls), missingRole))
+        // Invalid: no arguments.
+        case Vector() =>
+          Left(errorMessage(missingEventId, missingCharacter))
 
-          case Vector(AsInt(_)) =>
-            Left(errorMessage(missingClass, missingRole))
-          case Vector(CharacterClass(_)) =>
-            Left(errorMessage(missingEventId, missingRole))
-          case Vector(CharacterRole(_)) =>
-            Left(errorMessage(missingEventId, missingClass))
-          case Vector(eventId) =>
-            Left(errorMessage(invalidEventId(eventId), missingClass, missingRole))
+        // Invalid: one argument.
+        case Vector(AsInt(_)) =>
+          Left(errorMessage(missingCharacter))
+        case CharacterPreset(_) =>
+          Left(errorMessage(missingEventId))
+        case Vector(CharacterClass(_)) =>
+          Left(errorMessage(missingEventId, missingRole))
+        case Vector(CharacterRole(_)) =>
+          Left(errorMessage(missingEventId, missingClass))
+        case Vector(eventId) =>
+          Left(errorMessage(invalidEventId(eventId), missingCharacter))
 
-          case _ =>
-            Left(errorMessage(missingEventId, missingClass, missingRole))
+        // Invalid: two arguments.
+        case Vector(AsInt(_), CharacterClass(_)) =>
+          Left(errorMessage(missingRole))
+        case Vector(AsInt(_), CharacterRole(_)) =>
+          Left(errorMessage(missingClass))
+        case Vector(AsInt(_), preset) =>
+          Left(errorMessage(invalidPreset(preset)))
+        case eventId +: CharacterPreset(_) =>
+          Left(errorMessage(invalidEventId(eventId)))
+        case Vector(eventId, CharacterClass(_)) =>
+          Left(errorMessage(invalidEventId(eventId), missingRole))
+        case Vector(eventId, CharacterRole(_)) =>
+          Left(errorMessage(invalidEventId(eventId), missingClass))
+        case Vector(eventId, preset) =>
+          Left(errorMessage(invalidEventId(eventId), invalidPreset(preset)))
 
-        }
+        // Invalid: three or more arguments with an event ID.
+        case AsInt(_) +: cls +: CharacterRole(_) +: _ =>
+          Left(errorMessage(invalidClass(cls)))
+        case AsInt(_) +: CharacterClass(_) +: role +: _ =>
+          Left(errorMessage(invalidRole(role)))
+        case AsInt(_) +: cls +: role +: _ =>
+          Left(errorMessage(invalidClass(cls), invalidRole(role)))
+
+        // Invalid: three or more arguments without an event ID.
+        case eventId +: cls +: CharacterRole(_) +: _ =>
+          Left(errorMessage(invalidEventId(eventId), invalidClass(cls)))
+        case eventId +: CharacterClass(_) +: role +: _ =>
+          Left(errorMessage(invalidEventId(eventId), invalidRole(role)))
+        case eventId +: CharacterPreset(_) =>
+          Left(errorMessage(invalidEventId(eventId)))
+        case eventId +: cls +: role +: _ =>
+          Left(errorMessage(invalidEventId(eventId), invalidClass(cls), invalidRole(role)))
+
+      }
     }
 
     /**
@@ -362,11 +425,43 @@ object Bot {
     }
 
     /**
+     * The !status command.
+     */
+    object Status extends Command("status") {
+      override def parse(metadata: Message.Metadata, args: Vector[String]): Either[String, Message] =
+        args.headOption match {
+          case Some(AsInt(eventId)) => Right(Message.Status(metadata, eventId))
+          case Some(eventId) => Left(errorMessage(invalidEventId(eventId)))
+          case None => Left(errorMessage(missingEventId))
+        }
+    }
+
+    /**
+     * The !signups command.
+     */
+    object Signups extends Command("signups", "roster") {
+
+      override def embedReply: Boolean = true
+
+      override def parse(metadata: Message.Metadata, args: Vector[String]): Either[String, Message] =
+        args.headOption match {
+          case Some(AsInt(eventId)) => Right(Message.Signups(metadata, eventId))
+          case Some(eventId) => Left(errorMessage(invalidEventId(eventId)))
+          case None => Left(errorMessage(missingEventId))
+        }
+
+    }
+
+    /**
      * The !help command.
      */
     object Help extends Command("help", "commands") {
+
+      override def embedReply: Boolean = true
+
       override def parse(metadata: Message.Metadata, args: Vector[String]): Either[String, Message] =
         Right(Message.Help(metadata))
+
     }
 
     /**
