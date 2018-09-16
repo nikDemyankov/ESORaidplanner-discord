@@ -80,12 +80,17 @@ final class Client private(
         post(setup, UrlForm.fromSeq(render(metadata) ++ guildId.map(id => "guild_id" -> id.toString).toVector))
       case Message.Events(metadata) =>
         post(events, UrlForm.fromSeq(render(metadata)))
-      case Message.Signup(metadata, eventId, characterClass, characterRole) =>
+      case Message.Signup(metadata, eventId, Left((characterClass, characterRole))) =>
         post(signup, UrlForm.fromSeq(render(metadata) ++ Vector(
           "event_id" -> eventId.toString,
           "class" -> classId(characterClass).toString,
-          "role" -> roleId(characterRole).toString)
-        ))
+          "role" -> roleId(characterRole).toString
+        )))
+      case Message.Signup(metadata, eventId, Right(preset)) =>
+        post(signup, UrlForm.fromSeq(render(metadata) ++ Vector(
+          "event_id" -> eventId.toString,
+          "preset" -> preset.name
+        )))
       case Message.Signoff(metadata, eventId) =>
         post(signoff, UrlForm.fromSeq(render(metadata) :+ ("event_id" -> eventId.toString)))
       case Message.Status(metadata, eventId) =>

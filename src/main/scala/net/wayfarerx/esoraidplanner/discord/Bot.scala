@@ -129,7 +129,7 @@ final class Bot private(discord: IDiscordClient, lookback: FiniteDuration, clien
         )
         request(channel.getMessageHistoryTo(since)).flatMap { history =>
           handleMessages(history.iterator.asScala.filterNot(_.getAuthor == discord.getOurUser).toVector)
-        }.flatMap (_ => inspectChannels(info, next)).redeem(_ => (), _ => ())
+        }.flatMap(_ => inspectChannels(info, next)).redeem(_ => (), _ => ())
       case _ =>
         IO.pure(())
     }
@@ -257,6 +257,9 @@ object Bot {
     private def invalidEventId(eventId: String): String =
       s""""$eventId" is not a valid event ID"""
 
+    /** The missing character error message fragment. */
+    private def missingCharacter: String = "the character is not specified"
+
     /** The missing class error message fragment. */
     private def missingClass: String = "the class is missing"
 
@@ -271,6 +274,10 @@ object Bot {
     private def invalidRole(role: String): String =
       s""""$role" is not a valid role"""
 
+    /** The invalid preset error message fragment. */
+    private def invalidPreset(preset: String): String =
+      s""""$preset" is not a valid preset"""
+
     /** The usage error message fragment. */
     private def usage: String = "Type `!help` for usage instructions"
 
@@ -281,10 +288,14 @@ object Bot {
      * @return The final error message.
      */
     private def errorMessage(fragments: String*): String = fragments match {
-      case Seq(single) => s"$single. $usage."
-      case init :+ last => s"${init mkString ", "} & $last. $usage."
-      case _ => s"$usage."
+      case Seq(single) => s"${capitalize(single)}. $usage."
+      case (head +: middle) :+ last => s"${(capitalize(head) +: middle).mkString(", ")} & $last. $usage."
+      case Seq() => s"$usage."
     }
+
+    private def capitalize(string: String): String =
+      if (string.isEmpty) string
+      else string.charAt(0).toUpper +: string.tail
 
     /**
      * The !setup command.
@@ -310,54 +321,65 @@ object Bot {
      * The !signup command.
      */
     object Signup extends Command("signup") {
-      override def parse(metadata: Message.Metadata, args: Vector[String]): Either[String, Message] =
-        args take 3 match {
+      override def parse(metadata: Message.Metadata, args: Vector[String]): Either[String, Message] = args match {
 
-          case Vector(AsInt(eventId), CharacterClass(cls), CharacterRole(role)) =>
-            Right(Message.Signup(metadata, eventId, cls, role))
-          case Vector(AsInt(_), cls, CharacterRole(_)) =>
-            Left(errorMessage(invalidClass(cls)))
-          case Vector(AsInt(_), CharacterClass(_), role) =>
-            Left(errorMessage(invalidRole(role)))
-          case Vector(AsInt(_), cls, role) =>
-            Left(errorMessage(invalidClass(cls), invalidRole(role)))
-          case Vector(eventId, CharacterClass(_), CharacterRole(_)) =>
-            Left(errorMessage(invalidEventId(eventId)))
-          case Vector(eventId, cls, CharacterRole(_)) =>
-            Left(errorMessage(invalidEventId(eventId), invalidClass(cls)))
-          case Vector(eventId, CharacterClass(_), role) =>
-            Left(errorMessage(invalidEventId(eventId), invalidRole(role)))
-          case Vector(eventId, cls, role) =>
-            Left(errorMessage(invalidEventId(eventId), invalidClass(cls), invalidRole(role)))
+        // Valid arguments.
+        case AsInt(eventId) +: CharacterPreset(preset) =>
+          Right(Message.Signup(metadata, eventId, Right(preset)))
+        case AsInt(eventId) +: CharacterClass(cls) +: CharacterRole(role) +: _ =>
+          Right(Message.Signup(metadata, eventId, Left(cls -> role)))
 
-          case Vector(AsInt(_), CharacterClass(_)) =>
-            Left(errorMessage(missingRole))
-          case Vector(AsInt(_), CharacterRole(_)) =>
-            Left(errorMessage(missingClass))
-          case Vector(AsInt(_), cls) =>
-            Left(errorMessage(invalidClass(cls), missingRole))
-          case Vector(CharacterClass(_), CharacterRole(_)) =>
-            Left(errorMessage(missingEventId))
-          case Vector(eventId, CharacterClass(_)) =>
-            Left(errorMessage(invalidEventId(eventId), missingRole))
-          case Vector(eventId, CharacterRole(_)) =>
-            Left(errorMessage(invalidEventId(eventId), missingClass))
-          case Vector(eventId, cls) =>
-            Left(errorMessage(invalidEventId(eventId), invalidClass(cls), missingRole))
+        // Invalid: no arguments.
+        case Vector() =>
+          Left(errorMessage(missingEventId, missingCharacter))
 
-          case Vector(AsInt(_)) =>
-            Left(errorMessage(missingClass, missingRole))
-          case Vector(CharacterClass(_)) =>
-            Left(errorMessage(missingEventId, missingRole))
-          case Vector(CharacterRole(_)) =>
-            Left(errorMessage(missingEventId, missingClass))
-          case Vector(eventId) =>
-            Left(errorMessage(invalidEventId(eventId), missingClass, missingRole))
+        // Invalid: one argument.
+        case Vector(AsInt(_)) =>
+          Left(errorMessage(missingCharacter))
+        case CharacterPreset(_) =>
+          Left(errorMessage(missingEventId))
+        case Vector(CharacterClass(_)) =>
+          Left(errorMessage(missingEventId, missingRole))
+        case Vector(CharacterRole(_)) =>
+          Left(errorMessage(missingEventId, missingClass))
+        case Vector(eventId) =>
+          Left(errorMessage(invalidEventId(eventId), missingCharacter))
 
-          case _ =>
-            Left(errorMessage(missingEventId, missingClass, missingRole))
+        // Invalid: two arguments.
+        case Vector(AsInt(_), CharacterClass(_)) =>
+          Left(errorMessage(missingRole))
+        case Vector(AsInt(_), CharacterRole(_)) =>
+          Left(errorMessage(missingClass))
+        case Vector(AsInt(_), preset) =>
+          Left(errorMessage(invalidPreset(preset)))
+        case eventId +: CharacterPreset(_) =>
+          Left(errorMessage(invalidEventId(eventId)))
+        case Vector(eventId, CharacterClass(_)) =>
+          Left(errorMessage(invalidEventId(eventId), missingRole))
+        case Vector(eventId, CharacterRole(_)) =>
+          Left(errorMessage(invalidEventId(eventId), missingClass))
+        case Vector(eventId, preset) =>
+          Left(errorMessage(invalidEventId(eventId), invalidPreset(preset)))
 
-        }
+        // Invalid: three or more arguments with an event ID.
+        case AsInt(_) +: cls +: CharacterRole(_) +: _ =>
+          Left(errorMessage(invalidClass(cls)))
+        case AsInt(_) +: CharacterClass(_) +: role +: _ =>
+          Left(errorMessage(invalidRole(role)))
+        case AsInt(_) +: cls +: role +: _ =>
+          Left(errorMessage(invalidClass(cls), invalidRole(role)))
+
+        // Invalid: three or more arguments without an event ID.
+        case eventId +: cls +: CharacterRole(_) +: _ =>
+          Left(errorMessage(invalidEventId(eventId), invalidClass(cls)))
+        case eventId +: CharacterClass(_) +: role +: _ =>
+          Left(errorMessage(invalidEventId(eventId), invalidRole(role)))
+        case eventId +: CharacterPreset(_) =>
+          Left(errorMessage(invalidEventId(eventId)))
+        case eventId +: cls +: role +: _ =>
+          Left(errorMessage(invalidEventId(eventId), invalidClass(cls), invalidRole(role)))
+
+      }
     }
 
     /**
