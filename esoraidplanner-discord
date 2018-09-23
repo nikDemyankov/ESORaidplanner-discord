@@ -1,0 +1,6 @@
+#!/bin/bash
+
+until [ java -Xmx1G -jar target/scala-2.12/esoraidplanner-discord.jar "$@" ]; do
+    echo "The Discord bot crashed with exit code $?. Restarting..." >&2
+    sleep 1
+done
