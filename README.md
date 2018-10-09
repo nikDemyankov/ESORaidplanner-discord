@@ -36,8 +36,7 @@ Usage: java -jar esoraidplanner-discord.jar <setting ...>
 ### Discord Bot Settings
 
 ```
---bot-max-missed-pings <value>              Max number of heartbeats Discord can not respond to before a reconnect
-                                            is initiated.
+--bot-max-missed-pings <value>              Max number of heartbeats Discord can not respond to before a reconnect is initiated.
 --bot-shard-count <value>                   The number of shards the bot should create and manage.
 --bot-use-recommended-shard-count           Tells the bot to request the number of shards to login with from Discord.
 --bot-ignore-recommended-shard-count        Tells the bot to ignore the recommended number of shards to login with
