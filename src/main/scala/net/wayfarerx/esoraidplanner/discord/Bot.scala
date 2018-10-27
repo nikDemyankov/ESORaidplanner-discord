@@ -88,7 +88,12 @@ final class Bot private(discord: IDiscordClient, lookback: FiniteDuration, clien
           message.getGuild.getLongID
         ), tokens.tail) match {
           case Left(errorMessage) =>
-            if (recovering) IO.pure(()) else request(message.reply(errorMessage))
+            if (recovering) IO.unit else request(message.reply(errorMessage))
+          case Right(Message.Events(_) |
+                     Message.Help(_) |
+                     Message.Signups(_, _) |
+                     Message.Status(_, _))
+            if recovering => IO.unit
           case Right(msg) =>
             client.send(msg).flatMap(r => if (r.nonEmpty) {
               if (cmd.embedReply) {
