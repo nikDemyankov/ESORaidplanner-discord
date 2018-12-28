@@ -8,8 +8,14 @@ const config = require("./config.json");
 client.config = config;
 
 client.on("ready", () => {
-    client.user.setActivity('Raidplanner');
+    client.user.setActivity('planning for ' + client.guilds.size + ' guilds');
     console.log('Bot ready!');
+});
+client.on("guildCreate", guild => {
+    client.user.setActivity('planning for ' + client.guilds.size + ' guilds');
+});
+client.on("guildDelete", guild => {
+    client.user.setActivity('planning for ' + client.guilds.size + ' guilds');
 });
 
 fs.readdir("./events/", (err, files) => {
