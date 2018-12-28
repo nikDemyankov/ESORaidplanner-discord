@@ -6,6 +6,7 @@ exports.run = (client, message, args) => {
     var data = {
         discord_user_id: message.author.id,
         discord_channel_id: message.channel.id,
+        discord_server_id: message.guild.id,
     };
 
     if (null !== args[0]) {
