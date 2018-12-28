@@ -1,0 +1,9 @@
+{
+  "name": "rpbot",
+  "version": "1.0.0",
+  "dependencies": {
+    "discord.js": "latest",
+    "enmap": "latest",
+    "request": "^2.88.0"
+  }
+}
