@@ -32,7 +32,6 @@ exports.run = (client, message, args) => {
             interim += chunk;
         });
         res.on('end', () => {
-            console.log(interim);
             message.channel.send(interim);
         });
     });

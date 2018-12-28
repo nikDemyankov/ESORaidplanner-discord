@@ -1,10 +1,5 @@
 exports.run = (client, message, args) => {
 
-    if (undefined === args[0] || undefined === args[1] || undefined === args[2]) {
-        message.channel.send(message.author.toString() + ' Please use the correct command format to sign up. `!signup event_id class role`');
-        return;
-    }
-
     const classes = {
         "dk": 1,
         "dragonknight": 1,
@@ -39,30 +34,44 @@ exports.run = (client, message, args) => {
         "other": 5,
         "o": 5,
     };
+    if (undefined !== args[1] && args[1].startsWith('"')) {
+        var character = args[1].replace(/"/g, '');
 
-    if (classes[args[1]] === undefined) {
-        message.channel.send(message.author.toString() + ' Please use a valid class to sign up.');
-        return;
-    }
+        var data = JSON.stringify({
+            discord_user_id: message.author.id,
+            discord_channel_id: message.channel.id,
+            discord_server_id: message.guild.id,
+            event_id: args[0],
+            preset: character,
+        });
+    } else {
+        if (undefined === args[0] || undefined === args[1] || undefined === args[2]) {
+            message.channel.send(message.author.toString() + ' Please use the correct command format to sign up. `!signup event_id class role`');
+            return;
+        }
 
-    if (roles[args[2]] === undefined) {
-        message.channel.send(message.author.toString() + ' Please use a valid role to sign up.');
-        return;
+        if (classes[args[1]] === undefined) {
+            message.channel.send(message.author.toString() + ' Please use a valid class to sign up.');
+            return;
+        }
+
+        if (roles[args[2]] === undefined) {
+            message.channel.send(message.author.toString() + ' Please use a valid role to sign up.');
+            return;
+        }
+
+        var data = JSON.stringify({
+            discord_user_id: message.author.id,
+            discord_channel_id: message.channel.id,
+            discord_server_id: message.guild.id,
+            event_id: args[0],
+            class: classes[args[1]],
+            role: roles[args[2]]
+        });
     }
 
     const https = require('https');
-
     var interim = '';
-
-    const data = JSON.stringify({
-        discord_user_id: message.author.id,
-        discord_channel_id: message.channel.id,
-        discord_server_id: message.guild.id,
-        event_id: args[0],
-        class: classes[args[1]],
-        role: roles[args[2]]
-    });
-
     var auth = "Basic " + Buffer.from(client.config.networkToken).toString("base64");
 
     const options = {
