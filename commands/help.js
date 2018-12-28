@@ -8,6 +8,7 @@ exports.run = (client, message, args) => {
         discord_user_id: message.author.id,
         discord_channel_id: message.channel.id,
         discord_server_id: message.guild.id,
+        discord_handle: message.author.tag,
     });
 
     var auth = "Basic " + Buffer.from(client.config.networkToken).toString("base64");
