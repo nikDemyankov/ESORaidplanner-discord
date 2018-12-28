@@ -7,6 +7,7 @@ exports.run = (client, message, args) => {
     const data = JSON.stringify({
         discord_user_id: message.author.id,
         discord_channel_id: message.channel.id,
+        discord_server_id: message.guild.id,
     });
 
     var auth = "Basic " + Buffer.from(client.config.networkToken).toString("base64");
