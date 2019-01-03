@@ -1,9 +1,14 @@
 {
   "name": "rpbot",
   "version": "1.0.0",
+  "description": "A Discord bot for ESO Raidplanner",
+  "homepage": "https://github.com/ESORaidplanner/ESORaidplanner-discord",
+  "main": "bot.js",
+  "author": "Woeler",
   "dependencies": {
-    "discord.js": "latest",
-    "enmap": "latest",
-    "request": "^2.88.0"
-  }
+    "discord.js": "11.4.2",
+    "enmap": "4.6.1",
+    "request": "2.88.0"
+  },
+  "license": "GPL-3.0"
 }
