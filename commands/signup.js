@@ -65,6 +65,7 @@ exports.run = (client, message, args) => {
             discord_user_id: message.author.id,
             discord_channel_id: message.channel.id,
             discord_server_id: message.guild.id,
+            discord_handle: message.author.tag,
             event_id: args[0],
             class: classes[args[1]],
             role: roles[args[2]]
