@@ -1,4 +1,4 @@
-const events = require('../events');
+const help = require('../help');
 const https = require('https');
 
 jest.mock('https');
@@ -31,7 +31,7 @@ const requestOptions = {
   },
   host: 'esoraidplanner.com',
   method: 'POST',
-  path: 'https://esoraidplanner.com/api/discord/events',
+  path: 'https://esoraidplanner.com/api/discord/help',
 };
 
 beforeEach(() => {
@@ -40,11 +40,11 @@ beforeEach(() => {
 
 describe('Object structure', () => {
   it('`run` property should be defined', () => {
-    expect(events.run).toBeDefined();
+    expect(help.run).toBeDefined();
   });
 
   it('`run` should be a function', () => {
-    expect(typeof events.run).toBe('function');
+    expect(typeof help.run).toBe('function');
   });
 });
 
@@ -64,7 +64,7 @@ describe('Call `run` with success', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    events.run(client, message, []);
+    help.run(client, message, []);
   });
 
   it('Request is executed once', () => {
