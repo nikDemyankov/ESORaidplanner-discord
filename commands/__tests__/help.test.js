@@ -34,6 +34,19 @@ const requestOptions = {
   path: 'https://esoraidplanner.com/api/discord/help',
 };
 
+const response = {
+  on: jest.fn((eventName, callback) => callback('some server response')),
+};
+
+const request = {
+  write: jest.fn(),
+};
+
+https.request.mockImplementation((options, responseCallback) => {
+  responseCallback(response);
+  return request;
+});
+
 beforeEach(() => {
   jest.clearAllMocks();
 });
@@ -49,21 +62,7 @@ describe('Object structure', () => {
 });
 
 describe('Call `run` with success', () => {
-  const response = {
-    on: jest.fn((eventName, callback) => callback('some server response')),
-  };
-
-  const request = {
-    write: jest.fn(),
-  };
-
-  https.request.mockImplementation((options, responseCallback) => {
-    responseCallback(response);
-    return request;
-  });
-
   beforeEach(() => {
-    jest.clearAllMocks();
     help.run(client, message, []);
   });
 
