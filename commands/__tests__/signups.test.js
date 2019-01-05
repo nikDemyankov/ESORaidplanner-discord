@@ -1,4 +1,4 @@
-const signoff = require('../signoff');
+const signups = require('../signups');
 const https = require('https');
 
 jest.mock('https');
@@ -32,7 +32,7 @@ const requestOptions = {
   },
   host: 'esoraidplanner.com',
   method: 'POST',
-  path: 'https://esoraidplanner.com/api/discord/signoff',
+  path: 'https://esoraidplanner.com/api/discord/signups',
 };
 
 const response = {
@@ -54,17 +54,17 @@ beforeEach(() => {
 
 describe('Object structure', () => {
   it('`run` property should be defined', () => {
-    expect(signoff.run).toBeDefined();
+    expect(signups.run).toBeDefined();
   });
 
   it('`run` should be a function', () => {
-    expect(typeof signoff.run).toBe('function');
+    expect(typeof signups.run).toBe('function');
   });
 });
 
 describe('Arguments are empty', () => {
   beforeEach(() => {
-    signoff.run(client, message, []);
+    signups.run(client, message, []);
   });
 
   it('Error message is send to the channel', () => {
@@ -73,7 +73,7 @@ describe('Arguments are empty', () => {
 
   it('Correct error message is send', () => {
     expect(message.channel.send).toHaveBeenCalledWith(
-      'some-author Please use the correct command format to sign off. `!signoff event_id`',
+      'some-author Please use the correct command format. `!signups event_id`',
     );
   });
 
@@ -84,7 +84,7 @@ describe('Arguments are empty', () => {
 
 describe('Call `run` successfully', () => {
   beforeEach(() => {
-    signoff.run(client, message, [123]);
+    signups.run(client, message, [123]);
   });
 
   it('Request is executed once', () => {
