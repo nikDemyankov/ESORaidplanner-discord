@@ -2,7 +2,7 @@ exports.run = (client, message, args) => {
   if (undefined === args[0]) {
     message.channel.send(
       message.author.toString() +
-        ' Please use the correct command format to sign up. `!status event_id`',
+        ' Please use the correct command format to get status. `!status event_id`',
     );
     return;
   }
