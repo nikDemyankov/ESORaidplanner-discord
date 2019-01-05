@@ -1,45 +1,22 @@
+const api = require('../external-api');
+
 exports.run = (client, message, args) => {
   if (undefined === args[0]) {
+    const author = message.author.toString();
     message.channel.send(
-      message.author.toString() +
-        ' Please use the correct command format to get status. `!status event_id`',
+      `${author} Please use the correct command format to get status. \`!status event_id\``,
     );
     return;
   }
 
-  const https = require('https');
-
-  var interim = '';
-
-  const data = JSON.stringify({
+  const data = {
     discord_user_id: message.author.id,
     discord_channel_id: message.channel.id,
     discord_server_id: message.guild.id,
     discord_handle: message.author.tag,
     event_id: args[0],
-  });
-
-  var auth = 'Basic ' + Buffer.from(client.config.networkToken).toString('base64');
-
-  const options = {
-    host: 'esoraidplanner.com',
-    path: 'https://esoraidplanner.com/api/discord/status',
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Content-Length': data.length,
-      Authorization: auth,
-    },
   };
+  const options = { data, token: client.config.networkToken, method: 'status' };
 
-  var req = https.request(options, function(res) {
-    res.on('data', chunk => {
-      interim += chunk;
-    });
-    res.on('end', () => {
-      message.channel.send(interim);
-    });
-  });
-
-  req.write(data);
+  api.sendRequest(options, response => message.channel.send(response));
 };
