@@ -1,40 +1,8 @@
-exports.run = (client, message, args) => {
-  const classes = {
-    dk: 1,
-    dragonknight: 1,
-    d: 1,
-    sorc: 2,
-    sorcerer: 2,
-    s: 2,
-    nb: 3,
-    nightblade: 3,
-    n: 3,
-    warden: 4,
-    w: 4,
-    templar: 6,
-    temp: 6,
-    t: 6,
-  };
+const character = require('../character');
 
-  const roles = {
-    tank: 1,
-    t: 1,
-    healer: 2,
-    heal: 2,
-    h: 2,
-    magickadd: 3,
-    magicka: 3,
-    mdd: 3,
-    m: 3,
-    staminadd: 4,
-    stamdd: 4,
-    sdd: 4,
-    s: 4,
-    other: 5,
-    o: 5,
-  };
+exports.run = (client, message, args) => {
   if (undefined !== args[1] && args[1].startsWith('"')) {
-    var character = args[1].replace(/"/g, '');
+    var characterName = args[1].replace(/"/g, '');
 
     var data = JSON.stringify({
       discord_user_id: message.author.id,
@@ -42,7 +10,7 @@ exports.run = (client, message, args) => {
       discord_server_id: message.guild.id,
       discord_handle: message.author.tag,
       event_id: args[0],
-      preset: character,
+      preset: characterName,
     });
   } else {
     if (undefined === args[0] || undefined === args[1] || undefined === args[2]) {
@@ -53,12 +21,14 @@ exports.run = (client, message, args) => {
       return;
     }
 
-    if (classes[args[1]] === undefined) {
+    const characterClass = character.class[args[1]];
+    if (characterClass === undefined) {
       message.channel.send(message.author.toString() + ' Please use a valid class to sign up.');
       return;
     }
 
-    if (roles[args[2]] === undefined) {
+    const characterRole = character.role[args[2]];
+    if (characterRole === undefined) {
       message.channel.send(message.author.toString() + ' Please use a valid role to sign up.');
       return;
     }
@@ -69,8 +39,8 @@ exports.run = (client, message, args) => {
       discord_server_id: message.guild.id,
       discord_handle: message.author.tag,
       event_id: args[0],
-      class: classes[args[1]],
-      role: roles[args[2]],
+      class: characterClass,
+      role: characterRole,
     });
   }
 
