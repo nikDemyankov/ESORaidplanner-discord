@@ -1,3 +1,5 @@
+// TODO: rework to promises with proper error handling
+
 const https = require('https');
 
 const HOST = 'esoraidplanner.com';
