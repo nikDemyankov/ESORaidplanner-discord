@@ -1,7 +1,9 @@
 const setup = require('../setup');
-const https = require('https');
+const api = require('../../external-api');
 
-jest.mock('https');
+jest.mock('../../external-api', () => ({
+  sendRequest: jest.fn((options, callback) => callback('some server response')),
+}));
 
 const client = {
   config: {
@@ -23,30 +25,6 @@ const message = {
   },
 };
 
-const requestOptions = contentLength => ({
-  headers: {
-    Authorization: 'Basic c29tZS10b2tlbg==',
-    'Content-Length': contentLength,
-    'Content-Type': 'application/json',
-  },
-  host: 'esoraidplanner.com',
-  method: 'POST',
-  path: 'https://esoraidplanner.com/api/discord/setup',
-});
-
-const response = {
-  on: jest.fn((eventName, callback) => callback('some server response')),
-};
-
-const request = {
-  write: jest.fn(),
-};
-
-https.request.mockImplementation((options, responseCallback) => {
-  responseCallback(response);
-  return request;
-});
-
 beforeEach(() => {
   jest.clearAllMocks();
 });
@@ -67,25 +45,23 @@ describe('Call `run` successfully without guild_id', () => {
   });
 
   it('Request is executed once', () => {
-    expect(https.request).toHaveBeenCalledTimes(1);
-  });
-
-  it('Request executed with correct options', () => {
-    const optionsCall = https.request.mock.calls[0][0];
-    const expected = requestOptions(137);
-
-    expect(optionsCall).toEqual(expected);
-  });
-
-  it('Data is send once', () => {
-    expect(request.write).toHaveBeenCalledTimes(1);
+    expect(api.sendRequest).toHaveBeenCalledTimes(1);
   });
 
   it('Correct data is send', () => {
-    const data =
-      '{"discord_user_id":"some-author","discord_channel_id":"some-channel","discord_server_id":"some-guild","discord_handle":"some-author-tag"}';
+    const expected = {
+      data: {
+        discord_user_id: 'some-author',
+        discord_channel_id: 'some-channel',
+        discord_server_id: 'some-guild',
+        discord_handle: 'some-author-tag',
+      },
+      method: 'setup',
+      token: 'some-token',
+    };
 
-    expect(request.write).toHaveBeenCalledWith(data);
+    const actual = api.sendRequest.mock.calls[0][0];
+    expect(actual).toEqual(expected);
   });
 
   it('Should send server response to the channel only once', () => {
@@ -103,25 +79,24 @@ describe('Call `run` successfully with guild_id', () => {
   });
 
   it('Request is executed once', () => {
-    expect(https.request).toHaveBeenCalledTimes(1);
-  });
-
-  it('Request executed with correct options', () => {
-    const optionsCall = https.request.mock.calls[0][0];
-    const expected = requestOptions(152);
-
-    expect(optionsCall).toEqual(expected);
-  });
-
-  it('Data is send once', () => {
-    expect(request.write).toHaveBeenCalledTimes(1);
+    expect(api.sendRequest).toHaveBeenCalledTimes(1);
   });
 
   it('Correct data is send', () => {
-    const data =
-      '{"discord_user_id":"some-author","discord_channel_id":"some-channel","discord_server_id":"some-guild","discord_handle":"some-author-tag","guild_id":123}';
+    const expected = {
+      data: {
+        discord_user_id: 'some-author',
+        discord_channel_id: 'some-channel',
+        discord_server_id: 'some-guild',
+        discord_handle: 'some-author-tag',
+        guild_id: 123,
+      },
+      method: 'setup',
+      token: 'some-token',
+    };
 
-    expect(request.write).toHaveBeenCalledWith(data);
+    const actual = api.sendRequest.mock.calls[0][0];
+    expect(actual).toEqual(expected);
   });
 
   it('Should send server response to the channel only once', () => {
