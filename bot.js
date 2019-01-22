@@ -21,15 +21,14 @@ client.on('guildDelete', guild => {
 });
 
 // set event handlers
-R.mapObjIndexed((eventHandler, eventName) => {
+R.forEachObjIndexed((eventHandler, eventName) => {
   client.on(eventName, eventHandler(client));
 }, events);
 
-client.commands = new Enmap();
-
 // set command handlers
-R.mapObjIndexed((commandHandler, commandName) => {
-  console.log(`Attempting to load command ${commandName}: `, commandHandler);
+client.commands = new Enmap();
+R.forEachObjIndexed((commandHandler, commandName) => {
+  console.log(`Attempting to load command: ${commandName}`);
   client.commands.set(commandName, commandHandler);
 }, commands);
 

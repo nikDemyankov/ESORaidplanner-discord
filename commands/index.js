@@ -1,3 +1,5 @@
+// Contains all commands
+
 const eventsCommand = require('./events');
 const helpCommand = require('./help');
 const setupCommand = require('./setup');
