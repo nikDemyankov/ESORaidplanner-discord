@@ -1,4 +1,6 @@
-module.exports = (client, message) => {
+const R = require('ramda');
+
+const messageHandler = (client, message) => {
   // Ignore all bots
   if (message.author.bot) return;
 
@@ -33,3 +35,5 @@ module.exports = (client, message) => {
   // Run the command
   cmd.run(client, message, args);
 };
+
+module.exports = R.curry(messageHandler);
